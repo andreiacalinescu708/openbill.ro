@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Clienți - oBill</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="global.css" />
+  <style>
+    .page-header {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    @media (min-width: 640px) {
+      .page-header {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+    }
+
+    .search-box {
+      position: relative;
+      margin-bottom: var(--space-6);
+    }
+
+    .search-box input {
+      padding-left: var(--space-10);
+      font-size: 1.1rem;
+      height: 3.5rem;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: var(--space-4);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1.5rem;
+    }
+
+    #clientSearchResults {
+      position: absolute;
+      top: calc(100% + var(--space-2));
+      left: 0;
+      right: 0;
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 50;
+      box-shadow: var(--shadow-xl);
+      display: none;
+    }
+
+    #clientSearchResults.show {
+      display: block;
+    }
+
+    #clientSearchResults .itembtn {
+      width: 100%;
+      text-align: left;
+      padding: var(--space-4);
+      border: none;
+      border-bottom: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      font-size: 1rem;
+    }
+
+    #clientSearchResults .itembtn:hover {
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    #clientSearchResults .itembtn:last-child {
+      border-bottom: none;
+    }
+
+    /* ===== TABS ===== */
+    .tabs-nav {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-6);
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .tabs-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab-btn {
+      flex: 1;
+      min-width: 120px;
+      padding: var(--space-4) var(--space-6);
+      background: transparent;
+      border: 2px solid transparent;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      color: var(--text-muted);
+      font-size: 1.125rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.15);
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent-blue);
+    }
+
+    .tab-badge {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+
+    .tab-btn.active .tab-badge {
+      background: var(--accent-blue);
+      color: white;
+    }
+
+    /* ===== TAB CONTENT ===== */
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .clients-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+      min-height: 400px;
+    }
+
+    /* ===== COUNTY ACCORDION ===== */
+    .county-accordion {
+      margin-bottom: var(--space-3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: rgba(30, 41, 59, 0.5);
+    }
+
+    .county-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-4);
+      background: rgba(59, 130, 246, 0.1);
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .county-header:hover {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--text-primary);
+    }
+
+    .county-header::after {
+      content: "▼";
+      font-size: 0.875rem;
+      transition: transform 0.3s ease;
+      color: var(--accent-blue);
+    }
+
+    .county-header.active::after {
+      transform: rotate(180deg);
+    }
+
+    .county-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+
+    .county-body.open {
+      max-height: 2000px;
+      transition: max-height 0.4s ease-in;
+    }
+
+    .county-content {
+      padding: var(--space-4);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-3);
+    }
+
+    @media (min-width: 640px) {
+      .county-content {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .county-content {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    /* ===== CLIENT CARDS ===== */
+    .clients-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-3);
+    }
+
+    @media (min-width: 640px) {
+      .clients-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .clients-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .client-card {
+      position: relative;
+      padding: var(--space-5);
+      background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-xl);
+      color: var(--text-primary);
+      font-size: 1.125rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-align: left;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 4rem;
+      width: 100%;
+    }
+
+    .client-card::before {
+      content: "👤";
+      font-size: 1.5rem;
+      opacity: 0.7;
+    }
+
+    .client-card:hover {
+      transform: translateY(-3px) scale(1.02);
+      border-color: var(--accent-blue);
+      box-shadow: 0 12px 24px -4px rgba(2, 132, 199, 0.4);
+      background: linear-gradient(145deg, #1e293b 0%, #1e3a5f 100%);
+    }
+
+    .client-card:active {
+      transform: translateY(-1px) scale(0.98);
+    }
+
+    .client-card .client-name {
+      flex: 1;
+      font-size: 1.125rem;
+      line-height: 1.4;
+    }
+
+    .client-card .arrow {
+      opacity: 0;
+      transform: translateX(-10px);
+      transition: all 0.3s ease;
+      color: var(--accent-blue);
+      font-size: 1.25rem;
+    }
+
+    .client-card:hover .arrow {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .county-count {
+      background: rgba(59, 130, 246, 0.3);
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: var(--space-10);
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="index.html" class="navbar-brand" style="display: flex; align-items: center; gap: 0.5rem;">
+        <img src="favicon.svg" alt="openBill" style="height: 36px; width: auto;">
+        <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary-500, #3b82f6);">openBill</span>
+      </a>
+      <div class="navbar-actions">
+        <a href="index.html" class="btn btn-ghost btn-sm">← Înapoi</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 style="margin-bottom: var(--space-2); font-size: 2rem;">Selectează Client</h1>
+        <p style="color: var(--text-muted); margin: 0; font-size: 1.125rem;">Alege un client pentru a începe o comandă nouă</p>
+      </div>
+       <button class="btn btn-primary btn-lg" id="btnViewCurrentOrder" style="display: none; align-items: center; gap: 10px;">
+    <span>🛒</span>
+    <span>Vizualizează comanda actuală</span>
+    <span id="cartBadge" style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin-left: 8px; display: none;">0</span>
+  </button>
+</div>
+    </div>
+
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input 
+        type="text" 
+        id="searchClient" 
+        class="form-input" 
+        placeholder="Caută client după nume..." 
+        autocomplete="off" 
+      />
+      <div id="clientSearchResults"></div>
+    </div>
+
+    <!-- TAB NAVIGATION (Dinamic) -->
+    <div class="tabs-nav" id="dynamicTabs">
+      <!-- Tab-urile se generează dinamic din DB -->
+    </div>
+
+    <!-- TAB CONTENT (Dinamic) -->
+    <div class="clients-container" id="dynamicTabContent">
+      <!-- Conținutul tab-urilor se generează dinamic -->
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+  
+  <script>
+    // AȘTEPTĂM ca script.js să se încarce complet
+    document.addEventListener("DOMContentLoaded", async function() {
+      // Verificăm dacă suntem pe pagina corectă
+      if (!document.getElementById('dynamicTabs')) return;
+      
+      try {
+        // Încărcăm datele
+        const [categoriesRes, flatRes] = await Promise.all([
+          fetch("/api/client-categories"),
+          fetch("/api/clients-flat")
+        ]);
+        
+        const categories = await categoriesRes.json();
+        const flat = await flatRes.json();
+        
+        // Salvăm flat în localStorage pentru a-l folosi în selectClient
+        localStorage.setItem('clientsFlat', JSON.stringify(flat));
+        
+        // Grupăm clienții după categorie
+        const clientsByCategory = {};
+        categories.forEach(cat => clientsByCategory[cat] = []);
+        
+        flat.forEach(client => {
+          const cat = client.category || 'Fără categorie';
+          if (!clientsByCategory[cat]) clientsByCategory[cat] = [];
+          clientsByCategory[cat].push(client);
+        });
+        
+        // Generăm tab-urile dinamic
+        renderDynamicTabs(categories, clientsByCategory);
+        
+        // Inițializăm tab-urile
+        initTabs();
+        
+        // Inițializăm căutarea
+        initSearch(flat);
+        
+      } catch (err) {
+        console.error("Eroare:", err);
+        document.getElementById('dynamicTabContent').innerHTML = `
+          <div class="empty-state">
+            <p>Eroare la încărcarea datelor. Reîncearcă.</p>
+          </div>
+        `;
+      }
+    });
+    
+    // Generează tab-urile dinamic după categoriile din DB
+    function renderDynamicTabs(categories, clientsByCategory) {
+      const tabsContainer = document.getElementById('dynamicTabs');
+      const contentContainer = document.getElementById('dynamicTabContent');
+      
+      if (!tabsContainer || !contentContainer) return;
+      
+      // Dacă nu există categorii, afișăm un mesaj
+      if (categories.length === 0) {
+        contentContainer.innerHTML = `
+          <div class="empty-state">
+            <div style="font-size: 3rem; margin-bottom: var(--space-4); opacity: 0.3;">📂</div>
+            <p>Nu există categorii de clienți definite.</p>
+            <p style="font-size: 0.9rem; opacity: 0.7; margin-top: 1rem;">
+              Mergi la <b>Administrare Clienți</b> pentru a adăuga categorii.
+            </p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Iconițe pentru categorii (fallback)
+      const icons = ['📍', '🌍', '🏢', '🏪', '🏥', '🏭', '🏬', '🏦'];
+      
+      // Generăm HTML pentru tab-uri
+      let tabsHtml = '';
+      let contentHtml = '';
+      
+      categories.forEach((category, index) => {
+        const clients = clientsByCategory[category] || [];
+        const icon = icons[index % icons.length];
+        const isActive = index === 0 ? 'active' : '';
+        const tabId = `tab-${category.toLowerCase().replace(/\s+/g, '-')}`;
+        
+        // Tab button
+        tabsHtml += `
+          <button class="tab-btn ${isActive}" data-tab="${tabId}">
+            <span>${icon}</span>
+            <span>${category}</span>
+            <span class="tab-badge" id="count-${tabId}">${clients.length}</span>
+          </button>
+        `;
+        
+        // Tab content
+        contentHtml += `
+          <div id="${tabId}" class="tab-content ${isActive}">
+            <div id="content-${tabId}">
+              ${renderCategoryContent(category, clients)}
+            </div>
+          </div>
+        `;
+      });
+      
+      tabsContainer.innerHTML = tabsHtml;
+      contentContainer.innerHTML = contentHtml;
+    }
+    
+    // Randează conținutul pentru o categorie
+    function renderCategoryContent(category, clients) {
+      if (clients.length === 0) {
+        return `
+          <div class="empty-state">
+            <div style="font-size: 3rem; margin-bottom: var(--space-4); opacity: 0.3;">📂</div>
+            <p>Nu există clienți în ${category}.</p>
+          </div>
+        `;
+      }
+      
+      // Sortare alfabetică
+      clients.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ro'));
+      
+      let html = '<div class="clients-grid">';
+      clients.forEach(client => {
+        html += `
+          <button class="client-card" onclick="selectClient('${client.name}')">
+            <span class="client-name">${client.name}</span>
+            <span class="arrow">→</span>
+          </button>
+        `;
+      });
+      html += '</div>';
+      
+      return html;
+    }
+
+    function selectClient(name) {
+      const flat = JSON.parse(localStorage.getItem('clientsFlat') || '[]');
+      const client = flat.find(c => c.name === name);
+      
+      if (!client) {
+        alert("Clientul nu a fost găsit");
+        return;
+      }
+      
+      // Verificăm coșul
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      if (cart.length > 0) {
+        alert("Nu poți schimba clientul cât timp există produse în coș.");
+        return;
+      }
+      
+      localStorage.setItem("clientSelectat", JSON.stringify(client));
+      location.href = "client.html";
+    }
+
+    function initTabs() {
+      // Pentru tab-urile dinamice generate din categorii
+      const tabs = document.querySelectorAll('.tab-btn');
+      
+      tabs.forEach(tab => {
+        tab.onclick = () => {
+          const targetId = tab.getAttribute('data-tab');
+          if (!targetId) return;
+          
+          // Dezactivăm toate tab-urile
+          document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          // Activăm tab-ul curent
+          tab.classList.add('active');
+          const content = document.getElementById(targetId);
+          if (content) content.classList.add('active');
+        };
+      });
+    }
+
+    function initSearch(flatClients) {
+      const input = document.getElementById("searchClient");
+      const results = document.getElementById("clientSearchResults");
+      
+      if (!input || !results) return;
+      
+      let timeout;
+      
+      input.oninput = () => {
+        const query = input.value.toLowerCase().trim();
+        
+        clearTimeout(timeout);
+        results.innerHTML = '';
+        
+        if (!query) {
+          results.classList.remove("show");
+          return;
+        }
+        
+        timeout = setTimeout(() => {
+          const matches = flatClients.filter(c => 
+            c.name.toLowerCase().includes(query)
+          ).slice(0, 20);
+          
+          if (matches.length === 0) {
+            results.innerHTML = '<div style="padding: 12px; color: var(--text-muted); text-align: center;">Niciun client găsit</div>';
+            results.classList.add("show");
+            return;
+          }
+          
+          matches.forEach(client => {
+            const btn = document.createElement("button");
+            btn.className = "itembtn";
+            btn.textContent = client.name;
+            btn.onclick = () => {
+              selectClient(client.name);
+            };
+            results.appendChild(btn);
+          });
+          
+          results.classList.add("show");
+        }, 300);
+      };
+      
+      // Închidem când dăm click în afară
+      document.onclick = (e) => {
+        if (!input.contains(e.target) && !results.contains(e.target)) {
+          results.classList.remove("show");
+        }
+      };
+    }
+  </script>
+  <script>
+document.addEventListener("DOMContentLoaded", function() {
+  const btn = document.getElementById("btnViewCurrentOrder");
+  const badge = document.getElementById("cartBadge");
+  
+  if (!btn) return; // Dacă nu există butonul, ieșim
+  
+  try {
+    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+    if (cart.length > 0) {
+      btn.style.display = "inline-flex"; // sau "flex"
+      badge.style.display = "inline";
+      badge.textContent = cart.reduce((sum, item) => sum + (item.qty || 1), 0);
+      
+      // Click handler
+      btn.onclick = function() {
+        location.href = "comanda.html";
+      };
+    }
+  } catch (e) {
+    console.log("Eroare la citirea coșului");
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Înregistrare - openBill</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="global.css" />
+  <style>
+    .auth-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-4);
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 520px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      padding: var(--space-8);
+      box-shadow: var(--shadow-xl);
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: var(--space-6);
+    }
+
+    .auth-header img {
+      height: 50px;
+      width: auto;
+      margin-bottom: var(--space-4);
+    }
+
+    .auth-header h1 {
+      font-size: 1.5rem;
+      margin-bottom: var(--space-2);
+    }
+
+    .auth-header p {
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .form-section {
+      margin-bottom: var(--space-5);
+      padding-bottom: var(--space-5);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section:last-of-type {
+      border-bottom: none;
+    }
+
+    .section-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--primary-400);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-3);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-3);
+    }
+
+    .form-group {
+      margin-bottom: var(--space-4);
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-2);
+    }
+
+    .form-label .required {
+      color: var(--danger-500);
+      margin-left: 2px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: var(--space-3) var(--space-4);
+      font-size: 0.9375rem;
+      color: var(--text-primary);
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      transition: all var(--transition-fast);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .auth-footer {
+      text-align: center;
+      margin-top: var(--space-6);
+      padding-top: var(--space-6);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .auth-footer a {
+      color: var(--primary-400);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .auth-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Mesaje */
+    #registerMsg {
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      display: none;
+      margin-bottom: var(--space-4);
+    }
+
+    #registerMsg.show {
+      display: block;
+    }
+
+    .msg-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--danger-500);
+    }
+
+    .msg-success {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: var(--success-400);
+    }
+
+    .msg-info {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--primary-400);
+    }
+
+    /* Trial badge */
+    .trial-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: var(--radius-full);
+      color: var(--warning-500);
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: var(--space-3);
+    }
+
+    /* Loading */
+    .btn-loading {
+      position: relative;
+      color: transparent !important;
+    }
+
+    .btn-loading::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      top: 50%;
+      left: 50%;
+      margin-left: -10px;
+      margin-top: -10px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mobile */
+    @media (max-width: 640px) {
+      .auth-card {
+        padding: var(--space-5);
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-header">
+        <img src="favicon.svg" alt="openBill">
+        <h1>Creează cont nou</h1>
+        <p>Înregistrează compania ta și începe trialul gratuit</p>
+        <div class="trial-badge">🎁 14 zile trial gratuit</div>
+      </div>
+
+      <div id="registerMsg"></div>
+
+      <form class="auth-form" id="registerForm">
+        <!-- Date Companie -->
+        <div class="form-section">
+          <div class="section-title">Date Companie</div>
+          
+          <div class="form-group">
+            <label class="form-label" for="companyName">Numele companiei <span class="required">*</span></label>
+            <input type="text" id="companyName" class="form-input" placeholder="Ex: Farmacia X SRL" required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cui">CUI / CIF</label>
+            <input type="text" id="cui" class="form-input" placeholder="Ex: RO12345678" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="city">Oraș</label>
+              <input type="text" id="city" class="form-input" placeholder="Ex: București" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="address">Adresă</label>
+              <input type="text" id="address" class="form-input" placeholder="Ex: Str. Exemplu nr. 1" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Selectare Plan -->
+        <div class="form-section">
+          <div class="section-title">Selectează Planul</div>
+          
+          <div class="form-group">
+            <label class="form-label">Plan <span class="required">*</span></label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3);">
+              <label style="display: flex; flex-direction: column; padding: var(--space-4); background: var(--bg-input); border: 2px solid var(--border-color); border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--success-500)'" onmouseout="if(!document.getElementById('planStarter').checked) this.style.borderColor='var(--border-color)'">
+                <input type="radio" name="plan" id="planStarter" value="starter" style="margin-bottom: var(--space-2);" checked>
+                <strong style="color: #10b981;">Starter</strong>
+                <span style="font-size: 0.875rem; color: var(--text-muted);">29.99€/lună</span>
+                <small style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Fără lot/expirare</small>
+              </label>
+              
+              <label style="display: flex; flex-direction: column; padding: var(--space-4); background: var(--bg-input); border: 2px solid var(--border-color); border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--primary-500)'" onmouseout="if(!document.getElementById('planPro').checked) this.style.borderColor='var(--border-color)'">
+                <input type="radio" name="plan" id="planPro" value="pro" style="margin-bottom: var(--space-2);">
+                <strong style="color: var(--primary-500);">Pro</strong>
+                <span style="font-size: 0.875rem; color: var(--text-muted);">39.99€/lună</span>
+                <small style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Popular</small>
+              </label>
+              
+              <label style="display: flex; flex-direction: column; padding: var(--space-4); background: var(--bg-input); border: 2px solid var(--border-color); border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#8b5cf6'" onmouseout="if(!document.getElementById('planEnterprise').checked) this.style.borderColor='var(--border-color)'">
+                <input type="radio" name="plan" id="planEnterprise" value="enterprise" style="margin-bottom: var(--space-2);">
+                <strong style="color: #8b5cf6;">Enterprise</strong>
+                <span style="font-size: 0.875rem; color: var(--text-muted);">59.99€/lună</span>
+                <small style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Custom</small>
+              </label>
+            </div>
+          </div>
+          
+          <p style="font-size: 0.875rem; color: var(--text-muted); text-align: center; margin-top: var(--space-3);">
+            🎁 14 zile trial gratuit pentru toate planurile. Anulează oricând.
+          </p>
+        </div>
+
+        <!-- Date Administrator -->
+        <div class="form-section">
+          <div class="section-title">Date Administrator</div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="firstName">Prenume</label>
+              <input type="text" id="firstName" class="form-input" placeholder="Ex: Ion" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="lastName">Nume</label>
+              <input type="text" id="lastName" class="form-input" placeholder="Ex: Popescu" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Email <span class="required">*</span></label>
+            <input type="email" id="email" class="form-input" placeholder="exemplu@companie.ro" required autocomplete="email" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="phone">Telefon</label>
+            <input type="tel" id="phone" class="form-input" placeholder="Ex: 0712345678" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Parolă <span class="required">*</span></label>
+            <input type="password" id="password" class="form-input" placeholder="Minim 6 caractere" required minlength="6" autocomplete="new-password" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg" id="btnRegister">
+          Creează cont
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <span style="color: var(--text-muted);">Ai deja cont?</span>
+        <a href="login.html">Autentifică-te</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const registerForm = document.getElementById('registerForm');
+    const btnRegister = document.getElementById('btnRegister');
+    const registerMsg = document.getElementById('registerMsg');
+
+    function showMessage(text, type) {
+      registerMsg.textContent = text;
+      registerMsg.className = 'show msg-' + type;
+    }
+
+    function hideMessage() {
+      registerMsg.className = '';
+      registerMsg.textContent = '';
+    }
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMessage();
+
+      // Obține planul selectat
+      const planSelected = document.querySelector('input[name="plan"]:checked')?.value || 'starter';
+      
+      const data = {
+        companyName: document.getElementById('companyName').value.trim(),
+        cui: document.getElementById('cui').value.trim(),
+        city: document.getElementById('city').value.trim(),
+        address: document.getElementById('address').value.trim(),
+        firstName: document.getElementById('firstName').value.trim(),
+        lastName: document.getElementById('lastName').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        password: document.getElementById('password').value,
+        plan: planSelected
+      };
+
+      // Validare
+      if (data.password.length < 6) {
+        showMessage('Parola trebuie să aibă minim 6 caractere.', 'error');
+        return;
+      }
+
+      btnRegister.classList.add('btn-loading');
+      btnRegister.disabled = true;
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          showMessage('✅ Cont creat! Redirectare către verificare email...', 'success');
+          
+          // Salvăm emailul pentru pagina de verificare
+          localStorage.setItem('verifyEmail', data.email);
+          
+          // Redirectăm la verificare după 2 secunde
+          setTimeout(() => {
+            window.location.href = 'verify-email.html';
+          }, 2000);
+        } else {
+          showMessage(result.error || 'Eroare la înregistrare', 'error');
+        }
+      } catch (err) {
+        showMessage('Eroare de conexiune. Încearcă din nou.', 'error');
+        console.error(err);
+      } finally {
+        btnRegister.classList.remove('btn-loading');
+        btnRegister.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
+  <meta name="theme-color" content="#0284c7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Panou Administrare - Aprobări</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="global.css">
+  <style>
+    body { background: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; margin: 0; }
+    .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
+    @media (max-width: 767px) {
+      body { padding-top: 100px; }
+    }
+    @media (max-width: 479px) {
+      body { padding-top: 90px; }
+    }
+    .topbar { background: #0284c7; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #1e293b; border-radius: 1rem; padding: 2rem; margin-bottom: 2rem; border: 1px solid #334155; }
+    
+    .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid #334155; }
+    .tab { 
+      padding: 1rem 2rem; 
+      cursor: pointer; 
+      border-bottom: 2px solid transparent; 
+      opacity: 0.7;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+    .tab.active { 
+      border-bottom-color: #0284c7; 
+      opacity: 1; 
+      font-weight: 600; 
+    }
+    
+    .user-card { 
+      background: #0f172a; 
+      border: 1px solid #334155; 
+      border-radius: 0.75rem; 
+      padding: 1.5rem; 
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .user-card.blocked {
+      border-left: 4px solid #dc2626;
+      background: rgba(220, 38, 38, 0.1);
+    }
+    .user-info { flex: 1; }
+    .user-name { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .user-meta { color: #94a3b8; font-size: 0.9rem; }
+    
+    .btn-approve { 
+      background: #10b981; 
+      color: white; 
+      border: none; 
+      padding: 0.75rem 1.5rem; 
+      border-radius: 0.5rem; 
+      cursor: pointer; 
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .btn-approve:hover { background: #059669; }
+    
+    .btn-reject { 
+      background: #ef4444; 
+      color: white; 
+      border: none; 
+      padding: 0.75rem 1.5rem; 
+      border-radius: 0.5rem; 
+      cursor: pointer; 
+      font-weight: 600;
+    }
+    .btn-reject:hover { background: #dc2626; }
+    
+    .btn-unlock {
+      background: #f59e0b;
+      color: #1e293b;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-unlock:hover { background: #d97706; }
+    
+    .empty-state { 
+      text-align: center; 
+      padding: 3rem; 
+      color: #64748b; 
+      font-style: italic; 
+    }
+    
+    .error-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    
+    .badge { 
+      padding: 0.25rem 0.75rem; 
+      border-radius: 9999px; 
+      font-size: 0.875rem; 
+      font-weight: 600; 
+      display: inline-block;
+      margin-left: 0.5rem;
+    }
+    .badge-danger { background: #dc2626; color: white; }
+    .badge-admin { background: #f59e0b; color: #1e293b; }
+    .badge-user { background: #3b82f6; color: white; }
+    .badge-pending { background: #ef4444; color: white; }
+    .badge-approved { background: #10b981; color: white; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #334155; }
+    th { color: #94a3b8; font-weight: 600; }
+    
+    /* ============== RESPONSIVE STYLES ============== */
+    
+    /* Tablet (768px - 1023px) */
+    @media (max-width: 1023px) {
+      .container { 
+        padding: 0 0.75rem; 
+        margin: 1rem auto;
+      }
+      .card { 
+        padding: 1.25rem; 
+        margin-bottom: 1rem;
+      }
+    }
+    
+    /* Mobile (< 768px) */
+    @media (max-width: 767px) {
+      /* Topbar responsive */
+      .topbar { 
+        padding: 0.75rem 1rem; 
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        height: auto;
+        min-height: 56px;
+      }
+      .topbar h2 {
+        font-size: 1rem;
+        order: 3;
+        width: 100%;
+        text-align: center;
+        margin-top: 0.5rem;
+      }
+      .topbar .navbar-brand span {
+        font-size: 1.1rem !important;
+      }
+      
+      /* Container */
+      .container { 
+        padding: 0 0.5rem; 
+        margin: 0.75rem auto;
+      }
+      .card { 
+        padding: 1rem; 
+        margin-bottom: 0.75rem;
+        border-radius: 0.75rem;
+      }
+      
+      /* Tabs - scrollable pe mobil */
+      .tabs { 
+        flex-wrap: nowrap; 
+        overflow-x: auto;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
+      }
+      .tabs::-webkit-scrollbar { 
+        display: none; /* Chrome/Safari */
+      }
+      .tab { 
+        padding: 0.625rem 0.875rem; 
+        font-size: 0.875rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      
+      /* User cards */
+      .user-card { 
+        flex-direction: column; 
+        align-items: flex-start; 
+        gap: 0.75rem;
+        padding: 1rem;
+      }
+      .user-name { 
+        font-size: 1rem;
+        line-height: 1.4;
+      }
+      .user-meta { 
+        font-size: 0.8rem;
+        word-break: break-word;
+      }
+      .user-card > div:last-child {
+        width: 100%;
+        display: flex;
+        gap: 0.5rem;
+      }
+      .user-card .btn-approve,
+      .user-card .btn-reject,
+      .user-card .btn-unlock {
+        flex: 1;
+        padding: 0.625rem 0.75rem;
+        font-size: 0.875rem;
+        margin: 0;
+      }
+      
+      /* Tabele responsive */
+      .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -0.5rem;
+        padding: 0 0.5rem;
+      }
+      table {
+        min-width: 600px;
+        font-size: 0.875rem;
+      }
+      th, td { 
+        padding: 0.625rem 0.5rem; 
+      }
+      
+      /* Badges mai mici pe mobil */
+      .badge {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+      }
+      
+      /* Secțiunea Invitații - butoane */
+      #tab-invites h3 + div {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+      }
+      #tab-invites h3 + div button {
+        width: 100%;
+        padding: 0.625rem;
+        font-size: 0.875rem;
+      }
+      
+      /* Modal invitație */
+      #inviteModal > div {
+        width: 95%;
+        padding: 1.25rem;
+        margin: 1rem;
+      }
+      #inviteModal h3 {
+        font-size: 1.1rem;
+      }
+      
+      /* Empty state */
+      .empty-state {
+        padding: 2rem 1rem;
+        font-size: 0.9rem;
+      }
+    }
+    
+    /* Small mobile (< 480px) */
+    @media (max-width: 479px) {
+      .topbar h2 {
+        font-size: 0.875rem;
+      }
+      .tab {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+      }
+      .user-name {
+        font-size: 0.9375rem;
+      }
+      .user-card .btn-approve,
+      .user-card .btn-reject,
+      .user-card .btn-unlock {
+        font-size: 0.8rem;
+        padding: 0.5rem;
+      }
+      table {
+        font-size: 0.8rem;
+      }
+    }
+    
+    /* Fix pentru tabele pe mobil - transformare în carduri */
+    @media (max-width: 640px) {
+      #tab-all .card, #tab-invites .card {
+        padding: 0.75rem;
+      }
+      #tab-all table, #tab-invites table {
+        display: block;
+      }
+      #tab-all thead, #tab-invites thead {
+        display: none;
+      }
+      #tab-all tbody, #tab-invites tbody,
+      #tab-all tr, #tab-invites tr {
+        display: block;
+      }
+      #tab-all tr, #tab-invites tr {
+        margin-bottom: 0.75rem;
+        padding: 0.75rem;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 0.5rem;
+        border-left: 3px solid #0284c7;
+      }
+      #tab-invites tr {
+        border-left-color: #3b82f6;
+      }
+      #tab-all td, #tab-invites td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.4rem 0;
+        border: none;
+        font-size: 0.875rem;
+      }
+      #tab-all td::before, #tab-invites td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #94a3b8;
+        font-size: 0.8rem;
+      }
+      /* Labels pentru tabelul Toți Utilizatorii */
+      #tab-all td:first-child::before { content: "ID:"; }
+      #tab-all td:nth-child(2)::before { content: "Utilizator:"; }
+      #tab-all td:nth-child(3)::before { content: "Rol:"; }
+      #tab-all td:nth-child(4)::before { content: "Status:"; }
+      #tab-all td:nth-child(5)::before { content: "Înregistrat:"; }
+      /* Labels pentru tabelul Invitații */
+      #tab-invites td:first-child::before { content: "Email:"; }
+      #tab-invites td:nth-child(2)::before { content: "Nume:"; }
+      #tab-invites td:nth-child(3)::before { content: "Rol:"; }
+      #tab-invites td:nth-child(4)::before { content: "Status:"; }
+      #tab-invites td:nth-child(5)::before { content: "Invitat de:"; }
+      #tab-invites td:nth-child(6)::before { content: "Data:"; }
+      #tab-invites td:nth-child(7)::before { content: "Expiră:"; }
+      #tab-invites td:nth-child(8)::before { content: "Acțiuni:"; }
+      /* Butoane acțiuni pe mobil */
+      #tab-invites td:last-child {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        justify-content: flex-end;
+      }
+      #tab-invites td:last-child button {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.75rem;
+      }
+    }
+
+    /* Userbar styles */
+    .user-bar { display: inline-block; }
+    .user-dropdown-container { position: relative; display: inline-block; }
+    .user-profile-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .user-profile-btn:hover { background: rgba(255,255,255,0.25); }
+  </style>
+</head>
+<body>
+  <div class="topbar" style="flex-wrap: wrap; min-height: 56px; height: auto; padding: 0.75rem 1rem;">
+    <a href="index.html" class="navbar-brand" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none; flex-shrink: 0;">
+      <img src="favicon.svg" alt="oBill" style="height: 32px; width: auto;">
+      <span style="font-size: 1.25rem; font-weight: 700; color: var(--primary-500, #3b82f6);">openBill</span>
+    </a>
+    <h2 style="font-size: 1.125rem; margin: 0;">🔧 Panou Administrare</h2>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+      <a href="index.html" class="btn btn-ghost btn-sm" style="color: white; border-color: rgba(255,255,255,0.3); white-space: nowrap;">← Înapoi</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- TAB-URI UNICE (nu duplicate) -->
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('pending')">⏳ În Așteptare</button>
+      <button class="tab" onclick="showTab('locked')">🔒 Blocați</button>
+      <button class="tab" onclick="showTab('invites')">📧 Invitații</button>
+      <button class="tab" onclick="showTab('all')">👥 Toți Utilizatorii</button>
+    </div>
+
+    <!-- Secțiunea În Așteptare -->
+    <div id="tab-pending" class="card">
+      <h3>Utilizatori în așteptare de aprobare</h3>
+      <div id="errorPending" class="error-box"></div>
+      <div id="pendingList">
+        <p class="empty-state">Se încarcă...</p>
+      </div>
+    </div>
+
+    <!-- Secțiunea Blocați (NOUĂ) -->
+    <div id="tab-locked" class="card" style="display: none;">
+      <h3>🔒 Utilizatori blocați temporar</h3>
+      <div id="errorLocked" class="error-box"></div>
+      <div id="lockedList">
+        <p class="empty-state">Se încarcă...</p>
+      </div>
+    </div>
+
+    <!-- Secțiunea Invitații -->
+    <div id="tab-invites" class="card" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3>📧 Invitații trimise</h3>
+        <div>
+          <button onclick="testEmailConfig()" title="Testează configurația email" style="background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; margin-right: 0.5rem;">📧 Test Email</button>
+          <button onclick="cleanupInvites()" title="Curăță invitațiile blocate" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; margin-right: 0.5rem;">🧹 Curăță</button>
+          <button class="btn-approve" onclick="openInviteModal()">+ Invită Utilizator</button>
+        </div>
+      </div>
+      <div id="emailTestResult" style="display: none; margin-bottom: 1rem; padding: 1rem; border-radius: 0.5rem;"></div>
+      <div id="errorInvites" class="error-box"></div>
+      <div id="invitesList">
+        <p class="empty-state">Se încarcă...</p>
+      </div>
+    </div>
+
+    <!-- Secțiunea Toți Utilizatorii -->
+    <div id="tab-all" class="card" style="display: none;">
+      <h3>Toți utilizatorii din sistem</h3>
+      <div id="errorAll" class="error-box"></div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Rol</th>
+              <th>Status</th>
+              <th>Data înregistrării</th>
+            </tr>
+          </thead>
+          <tbody id="allUsersList"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Invitație -->
+  <div id="inviteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: #1e293b; border-radius: 1rem; padding: 2rem; width: 90%; max-width: 500px; border: 1px solid #334155;">
+      <h3 style="margin-top: 0; margin-bottom: 1.5rem;">📧 Invită Utilizator Nou</h3>
+      <div id="inviteError" class="error-box" style="margin-bottom: 1rem;"></div>
+      <div id="inviteSuccess" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+      
+      <form id="inviteForm">
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.5rem;">Nume</label>
+          <input type="text" id="inviteFirstName" style="width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: white; font-size: 1rem; box-sizing: border-box;" placeholder="Ex: Popescu">
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+          <label style="display: block; color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.5rem;">Prenume</label>
+          <input type="text" id="inviteLastName" style="width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: white; font-size: 1rem; box-sizing: border-box;" placeholder="Ex: Ion">
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+          <label style="display: block; color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.5rem;">Email *</label>
+          <input type="email" id="inviteEmail" required style="width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: white; font-size: 1rem; box-sizing: border-box;" placeholder="ex: ion.popescu@firma.ro">
+        </div>
+        
+        <div id="roleSelectContainer" style="margin-bottom: 1.5rem; display: none;">
+          <label style="display: block; color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.5rem;">Rol</label>
+          <select id="inviteRole" style="width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; color: white; font-size: 1rem; box-sizing: border-box;">
+            <option value="user">Utilizator</option>
+            <option value="admin">Admin</option>
+          </select>
+          <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Utilizatorii au acces limitat. Adminii pot gestiona alți utilizatori.</p>
+        </div>
+        
+        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+          <button type="button" onclick="closeInviteModal()" style="padding: 0.75rem 1.5rem; background: transparent; border: 1px solid #334155; border-radius: 0.5rem; color: #94a3b8; cursor: pointer;">Anulează</button>
+          <button type="submit" style="padding: 0.75rem 1.5rem; background: #10b981; border: none; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer;">Trimite Invitație</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  
+  <script>
+    // Tab switching
+    function showTab(tabName) {
+      // Ascunde toate secțiunile
+      document.querySelectorAll('.card').forEach(el => el.style.display = 'none');
+      // Dezactivează toate tab-urile
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      
+      // Activează tab-ul selectat
+      event.target.classList.add('active');
+      // Afișează secțiunea corespunzătoare
+      document.getElementById(`tab-${tabName}`).style.display = 'block';
+      
+      // Încarcă datele specifice
+      if (tabName === 'pending') loadPending();
+      if (tabName === 'locked') loadLocked();
+      if (tabName === 'invites') loadInvites();
+      if (tabName === 'all') loadAllUsers();
+    }
+
+    // Utilitar pentru erori
+    function showError(section, message) {
+      const el = document.getElementById(`error${section.charAt(0).toUpperCase() + section.slice(1)}`);
+      if (el) {
+        el.textContent = message;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 5000);
+      }
+    }
+
+    // Încarcă utilizatori în așteptare
+    async function loadPending() {
+      const container = document.getElementById('pendingList');
+      container.innerHTML = '<p class="empty-state">Se încarcă...</p>';
+      
+      try {
+        const res = await fetch('/api/users/pending');
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'Eroare server');
+        
+        if (data.length === 0) {
+          container.innerHTML = '<p class="empty-state">Nu sunt utilizatori în așteptare. Toate conturile sunt aprobate! 🎉</p>';
+          return;
+        }
+        
+        container.innerHTML = '';
+        data.forEach(user => {
+          const roleText = user.role === 'superadmin' ? 'Administrator Principal' : 
+                          user.role === 'admin' ? 'Admin' : 'Utilizator';
+          const div = document.createElement('div');
+          div.className = 'user-card';
+          div.innerHTML = `
+            <div class="user-info">
+              <div class="user-name">
+                ${escapeHtml(user.first_name && user.last_name ? user.first_name + ' ' + user.last_name : user.email)}
+                <span class="badge badge-${user.role === 'superadmin' ? 'danger' : user.role === 'admin' ? 'approved' : 'pending'}" style="margin-left: 8px; font-size: 0.75rem;">${roleText}</span>
+              </div>
+              <div class="user-meta">
+                ID: ${user.id} • Înregistrat: ${new Date(user.created_at).toLocaleDateString('ro-RO')}
+                ${user.failed_attempts > 0 ? `<br>⚠️ Încercări eșuate: ${user.failed_attempts}` : ''}
+              </div>
+            </div>
+            <div>
+              <button class="btn-approve" onclick="handleUserAction(${user.id}, '${escapeHtml(user.email)}', 'approve')">✓ Aprobă</button>
+              <button class="btn-reject" onclick="handleUserAction(${user.id}, '${escapeHtml(user.email)}', 'reject')">✗ Respinge</button>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = `<p class="empty-state" style="color:#ef4444">Eroare: ${err.message}</p>`;
+      }
+    }
+
+    // Încarcă utilizatori blocați (NOU)
+    async function loadLocked() {
+      const container = document.getElementById('lockedList');
+      container.innerHTML = '<p class="empty-state">Se încarcă...</p>';
+      
+      try {
+        const res = await fetch('/api/users/locked');
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'Eroare server');
+        
+        if (data.length === 0) {
+          container.innerHTML = '<p class="empty-state">Nu sunt utilizatori blocați momentan. ✅</p>';
+          return;
+        }
+        
+        container.innerHTML = '';
+        data.forEach(user => {
+          const div = document.createElement('div');
+          div.className = 'user-card blocked';
+          
+          const minutes = Math.ceil(user.minutes_left || 0);
+          const timeText = minutes > 0 ? `(${minutes} min rămase)` : '(se deblochează automat)';
+          
+          div.innerHTML = `
+            <div class="user-info">
+              <div class="user-name">
+                ${escapeHtml(user.first_name && user.last_name ? user.first_name + ' ' + user.last_name : user.email)}
+                <span class="badge badge-danger">BLOCAT ${timeText}</span>
+              </div>
+              <div class="user-meta">
+                ID: ${user.id} • Încercări eșuate: ${user.failed_attempts}
+              </div>
+            </div>
+            <button class="btn-unlock" onclick="unlockUser(${user.id})">
+              🔓 Deblochează acum
+            </button>
+          `;
+          container.appendChild(div);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = `<p class="empty-state" style="color:#ef4444">Eroare: ${err.message}</p>`;
+      }
+    }
+
+    // Încarcă toți utilizatorii
+    async function loadAllUsers() {
+      const tbody = document.getElementById('allUsersList');
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;">Se încarcă...</td></tr>';
+      
+      try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'Eroare server');
+        
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;">Nu există utilizatori</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = data.map(user => {
+          const roleText = user.role === 'superadmin' ? 'Administrator Principal' : 
+                          user.role === 'admin' ? 'Admin' : 'Utilizator';
+          const roleClass = user.role === 'superadmin' ? 'badge-danger' : 
+                           user.role === 'admin' ? 'badge-approved' : 'badge-pending';
+          return `
+          <tr>
+            <td data-label="ID">${user.id}</td>
+            <td data-label="Utilizator"><strong>${escapeHtml(user.email)}</strong><br><small>${escapeHtml(user.first_name || '')} ${escapeHtml(user.last_name || '')}</small></td>
+            <td data-label="Rol"><span class="badge ${roleClass}">${roleText}</span></td>
+            <td data-label="Status">
+              <span class="badge badge-${user.is_approved ? 'approved' : 'pending'}">
+                ${user.is_approved ? '✓ Aprobat' : '⏳ În așteptare'}
+                ${user.failed_attempts >= 3 ? ' + 🔒 Blocat' : ''}
+              </span>
+            </td>
+            <td data-label="Înregistrat">${new Date(user.created_at).toLocaleDateString('ro-RO')}</td>
+          </tr>
+        `}).join('');
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">Eroare: ${err.message}</td></tr>`;
+      }
+    }
+
+    // Handler pentru aprobare/respingere
+    async function handleUserAction(userId, username, action) {
+      const confirmMsg = action === 'approve' 
+        ? `Aprobi utilizatorul "${username}"?` 
+        : `Ștergi definitiv utilizatorul "${username}"?`;
+        
+      if (!confirm(confirmMsg)) return;
+      
+      try {
+        const url = action === 'approve' 
+          ? `/api/users/approve/${userId}` 
+          : `/api/users/reject/${userId}`;
+          
+        const res = await fetch(url, { method: 'POST' });
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || `Eroare ${res.status}`);
+        
+        alert(action === 'approve' ? '✅ Utilizator aprobat!' : '🗑️ Utilizator șters!');
+        loadPending();
+        loadAllUsers();
+        
+      } catch (err) {
+        console.error(err);
+        showError('pending', 'Eroare: ' + err.message);
+      }
+    }
+
+    // Deblocare utilizator (NOU)
+    async function unlockUser(userId) {
+      if (!confirm("Deblochezi acest utilizator?")) return;
+      
+      try {
+        const res = await fetch(`/api/users/unlock/${userId}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'Eroare la deblocare');
+        
+        alert('✅ Utilizator deblocat!');
+        loadLocked(); // Reîncarcă lista de blocați
+        loadAllUsers(); // Reîncarcă lista generală
+        
+      } catch (err) {
+        console.error(err);
+        showError('locked', 'Eroare: ' + err.message);
+      }
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // ========== INVITE FUNCTIONS ==========
+    
+    function openInviteModal() {
+      document.getElementById('inviteModal').style.display = 'flex';
+      document.getElementById('inviteError').style.display = 'none';
+      document.getElementById('inviteSuccess').style.display = 'none';
+      document.getElementById('inviteForm').reset();
+    }
+    
+    function closeInviteModal() {
+      document.getElementById('inviteModal').style.display = 'none';
+    }
+    
+    // Închide modalul la click în afară
+    document.getElementById('inviteModal').addEventListener('click', (e) => {
+      if (e.target.id === 'inviteModal') closeInviteModal();
+    });
+    
+    // Trimite invitație
+    document.getElementById('inviteForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('inviteEmail').value.trim();
+      const firstName = document.getElementById('inviteFirstName').value.trim();
+      const lastName = document.getElementById('inviteLastName').value.trim();
+      const role = document.getElementById('inviteRole').value;
+      
+      try {
+        const res = await fetch('/api/invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, first_name: firstName, last_name: lastName, role })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          document.getElementById('inviteError').textContent = data.error || 'Eroare la trimiterea invitației';
+          document.getElementById('inviteError').style.display = 'block';
+          return;
+        }
+        
+        // Afișează mesaj de succes cu detalii despre email
+        const successDiv = document.getElementById('inviteSuccess');
+        const emailStatus = data.emailSent 
+          ? '✅ Email trimis' 
+          : '⚠️ Emailul nu a putut fi trimis (verifică logurile)';
+        
+        successDiv.innerHTML = `
+          <strong>✅ Invitație creată cu succes!</strong><br><br>
+          <strong>Status email:</strong> ${emailStatus}<br>
+          <strong>Email:</strong> ${escapeHtml(data.email)}<br>
+          <strong>Nume:</strong> ${escapeHtml(data.first_name || '-')} ${escapeHtml(data.last_name || '-')}<br><br>
+          ${!data.emailSent ? `<div style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+            <strong>⚠️ Nu s-a putut trimite email automat!</strong><br>
+            Trimite manual linkul de mai jos:<br>
+            <a href="${data.inviteLink}" target="_blank" style="color: #34d399; word-break: break-all;">${data.inviteLink}</a>
+          </div>` : `
+          <strong>Link invitație (backup):</strong><br>
+          <a href="${data.inviteLink}" target="_blank" style="color: #34d399; word-break: break-all;">${data.inviteLink}</a>
+          `}
+        `;
+        successDiv.style.display = 'block';
+        document.getElementById('inviteError').style.display = 'none';
+        
+        // Resetează formularul după 3 secunde
+        setTimeout(() => {
+          document.getElementById('inviteForm').reset();
+          document.getElementById('inviteSuccess').style.display = 'none';
+        }, 10000);
+        
+      } catch (err) {
+        document.getElementById('inviteError').textContent = 'Eroare la trimiterea invitației: ' + err.message;
+        document.getElementById('inviteError').style.display = 'block';
+      }
+    });
+    
+    // Încarcă lista de invitații
+    async function loadInvites() {
+      const list = document.getElementById('invitesList');
+      list.innerHTML = '<p class="empty-state">Se încarcă...</p>';
+      
+      try {
+        const res = await fetch('/api/invites');
+        if (!res.ok) throw new Error('Eroare la încărcarea invitațiilor');
+        
+        const invites = await res.json();
+        
+        if (invites.length === 0) {
+          list.innerHTML = '<p class="empty-state">Nu există invitații trimise încă.</p>';
+          return;
+        }
+        
+        let html = '<div class="table-container"><table><thead><tr><th>Email</th><th>Nume</th><th>Rol</th><th>Status</th><th>Invitat de</th><th>Data</th><th>Expiră</th><th>Acțiuni</th></tr></thead><tbody>';
+        
+        for (const invite of invites) {
+          const statusClass = invite.status === 'pending' ? 'badge-pending' : 
+                             invite.status === 'used' ? 'badge-approved' : 'badge-danger';
+          const statusText = invite.status === 'pending' ? 'În așteptare' : 
+                            invite.status === 'used' ? 'Folosită' : 'Expirată';
+          const roleText = invite.role === 'admin' ? 'Admin' : 'Utilizator';
+          const roleClass = invite.role === 'admin' ? 'badge-approved' : 'badge-pending';
+          
+          const createdAt = new Date(invite.created_at).toLocaleDateString('ro-RO');
+          const expiresAt = new Date(invite.expires_at).toLocaleDateString('ro-RO');
+          const fullName = [invite.first_name, invite.last_name].filter(Boolean).join(' ') || '-';
+          
+          // Butoane doar pentru invitațiile pending
+          const isPending = invite.status === 'pending';
+          const actions = isPending ? `
+            <button onclick="viewInviteLink('${invite.token}', '${escapeHtml(invite.email)}')" title="Vizualizează link" style="background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-right: 4px;">🔗</button>
+            <button onclick="resendInvite('${invite.id}', '${escapeHtml(invite.email)}')" title="Retrimite email" style="background: #f59e0b; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-right: 4px;">📧</button>
+            <button onclick="deleteInvite('${invite.id}', '${escapeHtml(invite.email)}')" title="Șterge invitația" style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;">🗑️</button>
+          ` : '<span style="color: #64748b;">-</span>';
+          
+          html += `
+            <tr>
+              <td data-label="Email">${escapeHtml(invite.email)}</td>
+              <td data-label="Nume">${escapeHtml(fullName)}</td>
+              <td data-label="Rol"><span class="badge ${roleClass}">${roleText}</span></td>
+              <td data-label="Status"><span class="badge ${statusClass}">${statusText}</span></td>
+              <td data-label="Invitat de">${escapeHtml(invite.invited_by)}</td>
+              <td data-label="Data">${createdAt}</td>
+              <td data-label="Expiră">${expiresAt}</td>
+              <td data-label="Acțiuni">${actions}</td>
+            </tr>
+          `;
+        }
+        
+        html += '</tbody></table></div>';
+        list.innerHTML = html;
+        
+      } catch (err) {
+        list.innerHTML = `<p class="empty-state" style="color: #ef4444;">Eroare: ${err.message}</p>`;
+      }
+    }
+
+    // Vizualizează link invitație
+    function viewInviteLink(token, email) {
+      const link = `${window.location.origin}/register.html?invite=${token}`;
+      alert(`🔗 Link invitație pentru ${email}:\n\n${link}\n\nLinkul a fost copiat în clipboard.`);
+      navigator.clipboard.writeText(link);
+    }
+    
+    // Retrimite invitația
+    async function resendInvite(id, email) {
+      if (!confirm(`Retrimi invitația pentru ${email}?`)) return;
+      
+      try {
+        const res = await fetch(`/api/invites/${id}/resend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          alert('Eroare: ' + (data.error || 'Nu s-a putut retrimite invitația'));
+          return;
+        }
+        
+        if (data.emailSent) {
+          alert(`✅ Email retrimis cu succes către ${email}`);
+        } else {
+          alert(`⚠️ Emailul nu a putut fi trimis.\n\nLink: ${data.inviteLink}`);
+        }
+        
+        // Reîncarcă lista
+        loadInvites();
+        
+      } catch (err) {
+        alert('Eroare la retrimire: ' + err.message);
+      }
+    }
+    
+    // Șterge invitația
+    async function deleteInvite(id, email) {
+      if (!confirm(`Ștergi invitația pentru ${email}?\n\nAceastă acțiune este ireversibilă.`)) return;
+      
+      try {
+        const res = await fetch(`/api/invites/${id}`, {
+          method: 'DELETE'
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          alert('Eroare: ' + (data.error || 'Nu s-a putut șterge invitația'));
+          return;
+        }
+        
+        alert('✅ Invitație ștearsă');
+        
+        // Reîncarcă lista
+        loadInvites();
+        
+      } catch (err) {
+        alert('Eroare la ștergere: ' + err.message);
+      }
+    }
+
+    // Testează configurația email
+    // Curăță toate invitațiile pentru un email
+    async function cleanupInvites() {
+      const email = prompt('Introdu emailul pentru care vrei să ștergi TOATE invitațiile:');
+      if (!email) return;
+      
+      if (!confirm(`Ești sigur că vrei să ștergi TOATE invitațiile pentru ${email}?`)) return;
+      
+      try {
+        const res = await fetch('/api/invites/cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          alert(`✅ ${data.message}\n\nInvitații găsite înainte: ${data.found_before.length}\nInvitații șterse: ${data.deleted}`);
+          loadInvites(); // Reîncarcă lista
+        } else {
+          alert('❌ Eroare: ' + (data.error || 'Necunoscută'));
+        }
+      } catch (err) {
+        alert('❌ Eroare de conexiune: ' + err.message);
+      }
+    }
+
+    async function testEmailConfig() {
+      const resultDiv = document.getElementById('emailTestResult');
+      resultDiv.style.display = 'block';
+      resultDiv.style.background = 'rgba(59, 130, 246, 0.1)';
+      resultDiv.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+      resultDiv.innerHTML = '⏳ Se testează configurația (max 15 secunde)...';
+      
+      // Abort controller pentru timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      try {
+        const res = await fetch('/api/test-email', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const data = await res.json();
+        
+        if (res.ok && data.ok) {
+          resultDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+          resultDiv.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          resultDiv.innerHTML = `✅ <strong>Email trimis cu succes!</strong><br>Verifică inboxul tău (${data.config?.user || 'admin'})`;
+        } else {
+          resultDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+          resultDiv.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          resultDiv.innerHTML = `❌ <strong>Eroare la trimitere</strong><br>${data.error || 'Verifică logurile'}<br><br>Config: ${data.config?.host || 'n/a'} / ${data.config?.user || 'n/a'}`;
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          resultDiv.innerHTML = `⏰ <strong>Timeout</strong><br>Request-ul a durat prea mult. Verifică logurile în Railway.`;
+        } else {
+          resultDiv.innerHTML = `❌ <strong>Eroare:</strong> ${err.message}`;
+        }
+        resultDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+        resultDiv.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      }
+    }
+
+    // Variabilă globală pentru rolul utilizatorului curent
+    let currentUserRole = null;
+    
+    // Inițializare
+    async function init() {
+      try {
+        const res = await fetch('/api/auth/check');
+        const data = await res.json();
+        
+        if (!data.loggedIn || (data.user.role !== 'admin' && data.user.role !== 'superadmin')) {
+          alert('Acces interzis! Doar administratorii pot vedea această pagină.');
+          window.location.href = 'index.html';
+          return;
+        }
+        
+        // Salvează rolul utilizatorului
+        currentUserRole = data.user.role;
+        
+        // Afișează dropdown-ul de rol doar pentru superadmin
+        if (currentUserRole === 'superadmin') {
+          document.getElementById('roleSelectContainer').style.display = 'block';
+        }
+        
+        // Încarcă datele inițiale (doar pentru tab-ul activ)
+        loadPending();
+        
+      } catch (err) {
+        console.error(err);
+        alert('Eroare la inițializare: ' + err.message);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

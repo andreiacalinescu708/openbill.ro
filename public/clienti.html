@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Administrare clienți</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="global.css">
+  
+  <style>
+    body { 
+      background: #0f172a; 
+      color: white; 
+      font-family: 'Segoe UI', sans-serif; 
+      margin: 0;
+      min-height: 100vh;
+    }
+    
+    /* Navbar standard folosit - vezi global.css */
+    .container { 
+      max-width: 1400px; 
+      margin: 2rem auto; 
+      padding: 0 1rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    
+    .card { 
+      background: #1e293b; 
+      border-radius: 1rem; 
+      padding: 1.5rem; 
+      border: 1px solid #334155;
+    }
+    
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid #0284c7;
+    }
+    
+    .card-header h3 { margin: 0; font-size: 1.25rem; }
+    
+    .input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1px solid #334155;
+      border-radius: 0.5rem;
+      background: #0f172a;
+      color: white;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .input:focus {
+      outline: none;
+      border-color: #0284c7;
+    }
+    
+    select.input {
+      cursor: pointer;
+    }
+    
+    .btnPrimary {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+    .btnPrimary:hover { background: #0369a1; }
+    
+    .btnSecondary {
+      background: #334155;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.3s;
+    }
+    .btnSecondary:hover { background: #475569; }
+    
+    .btnSuccess {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btnSuccess:hover { background: #059669; }
+    
+    .client-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .client-item {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #334155;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .client-item:hover { 
+      background: #0f172a; 
+    }
+    
+    .client-item.active {
+      background: rgba(2, 132, 199, 0.2);
+      border-left: 3px solid #0284c7;
+    }
+    
+    .client-name { font-weight: 500; }
+    .client-category { 
+      font-size: 0.8rem; 
+      color: #94a3b8;
+      background: #334155;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #64748b;
+    }
+    
+    .detail-row {
+      margin-bottom: 1rem;
+    }
+    
+    .detail-label {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .detail-value {
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+    
+    .cui-badge {
+      background: rgba(2, 132, 199, 0.2);
+      color: #38bdf8;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    
+    .category-editor {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+    
+    .category-editor select {
+      flex: 1;
+    }
+    
+    .category-editor input {
+      flex: 1;
+      display: none;
+    }
+    
+    .msg {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      min-height: 1.5rem;
+    }
+    
+    .msg.success { color: #10b981; }
+    .msg.error { color: #ef4444; }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.active { display: flex; }
+    
+    .modal-content {
+      background: #1e293b;
+      border-radius: 1rem;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      border: 1px solid #334155;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem;
+      border-bottom: 1px solid #334155;
+    }
+    
+    .modal-header h3 { margin: 0; }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    
+    .modal-close:hover { color: white; }
+    
+    .modal-body {
+      padding: 1.5rem;
+    }
+    
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+    
+    .hidden { display: none !important; }
+    
+    .price-item {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      align-items: center;
+    }
+    
+    .price-item select, .price-item input {
+      margin-bottom: 0;
+    }
+    
+    .btn-remove {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    // Verifică accesul - doar Admin și SuperAdmin pot accesa clienții
+    (async function checkAccess() {
+      try {
+        const res = await fetch('/api/auth/check');
+        const data = await res.json();
+        
+        if (!data.loggedIn) {
+          window.location.href = 'login.html';
+          return;
+        }
+        
+        // Utilizatorii obișnuiți nu au acces la clienți
+        if (data.user.role === 'user') {
+          alert('Acces interzis! Nu ai permisiunea să accesezi această pagină.');
+          window.location.href = 'index.html';
+          return;
+        }
+      } catch (err) {
+        console.error('Eroare verificare acces:', err);
+        window.location.href = 'login.html';
+      }
+    })();
+  </script>
+  <!-- Navbar standard -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="index.html" class="navbar-brand" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none;">
+        <img src="favicon.svg" alt="openBill" style="height: 36px; width: auto;">
+        <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary-500, #3b82f6);">openBill</span>
+      </a>
+      <div class="navbar-actions"></div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Lista Clienți -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📋 Lista Clienți</h3>
+        <button class="btnPrimary" onclick="openModal()">➕ Adaugă</button>
+      </div>
+      
+      <input type="text" id="searchInput" class="input" placeholder="Caută client...">
+      
+      <div id="clientsList" class="client-list">
+        <div class="empty-state">Se încarcă...</div>
+      </div>
+    </div>
+
+    <!-- Detalii Client -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📄 Detalii Client</h3>
+      </div>
+      
+      <div id="clientDetails">
+        <div class="empty-state">Selectează un client din listă</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Adaugă Client -->
+  <div id="addModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>➕ Adaugă Client Nou</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <form id="addClientForm">
+          <div class="form-group">
+            <label>Nume firmă / farmacie *</label>
+            <input type="text" id="newName" class="input" placeholder="ex: Farmacia Tei" required>
+          </div>
+          
+          <div class="form-group">
+            <label>CUI Firmă</label>
+            <input type="text" id="newCui" class="input" placeholder="RO12345678">
+          </div>
+          
+          <div class="form-group">
+            <label>Categorie / Zonă *</label>
+            <select id="newCategory" class="input" required>
+              <option value="">-- Selectează sau introdu nouă --</option>
+            </select>
+            <input type="text" id="newCategoryText" class="input" placeholder="Sau introdu categorie nouă..." style="margin-top: 0.5rem;">
+          </div>
+          
+          <div class="form-group">
+            <label>Termen de plată (zile)</label>
+            <input type="number" id="newPaymentTerms" class="input" placeholder="0" min="0" max="365" value="0">
+            <small style="color: #64748b; font-size: 0.8rem;">Număr de zile pentru scadența facturilor</small>
+          </div>
+          
+          <hr style="border-color: #334155; margin: 1.5rem 0;">
+          
+          <div class="form-group">
+            <label>💰 Prețuri speciale (opțional)</label>
+            <div id="pricesContainer"></div>
+            <button type="button" class="btnSecondary" onclick="addPriceRow()" style="margin-top: 0.5rem;">
+              ➕ Adaugă preț
+            </button>
+          </div>
+          
+          <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <button type="submit" class="btnPrimary" style="flex: 1;">💾 Salvează</button>
+            <button type="button" class="btnSecondary" onclick="closeModal()">Anulează</button>
+          </div>
+          
+          <div id="formMsg" class="msg"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Adaugă Preț Special -->
+  <div id="priceModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>💰 Adaugă Preț Special</h3>
+        <button class="modal-close" onclick="closePriceModal()">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Caută produs (nume sau GTIN)</label>
+          <input type="text" id="priceSearchInput" class="input" placeholder="Tastează pentru a căuta..." autocomplete="off">
+          <div id="priceSearchResults" style="max-height: 200px; overflow-y: auto; background: #0f172a; border-radius: 0.5rem; margin-top: 0.5rem;"></div>
+        </div>
+        
+        <div id="selectedProductInfo" style="display: none; background: #0f172a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+          <div style="font-weight: 600; margin-bottom: 0.5rem;">Produs selectat:</div>
+          <div id="selectedProductName" style="color: #38bdf8;"></div>
+          <div id="selectedProductPrice" style="color: #94a3b8; font-size: 0.9rem;"></div>
+          <input type="hidden" id="selectedProductId">
+        </div>
+        
+        <div class="form-group">
+          <label>Preț special (RON) *</label>
+          <input type="number" id="specialPriceInput" class="input" placeholder="0.00" step="0.01" min="0">
+        </div>
+        
+        <div style="display: flex; gap: 1rem;">
+          <button class="btnPrimary" style="flex: 1;" onclick="saveSpecialPrice()">💾 Salvează Preț</button>
+          <button class="btnSecondary" onclick="closePriceModal()">Anulează</button>
+        </div>
+        
+        <div id="priceMsg" class="msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  
+  <script>
+    let allClients = [];
+    let allCategories = [];
+    let selectedClient = null;
+    let products = [];
+
+    // Încarcă date la pornire
+    async function init() {
+      await Promise.all([
+        loadClients(),
+        loadCategories(),
+        loadProducts()
+      ]);
+    }
+
+    async function loadClients() {
+      try {
+        const res = await fetch('/api/clients-flat');
+        allClients = await res.json();
+        renderClientList(allClients);
+      } catch (e) {
+        console.error('Eroare la încărcarea clienților:', e);
+        document.getElementById('clientsList').innerHTML = 
+          '<div class="empty-state">Eroare la încărcare</div>';
+      }
+    }
+
+    async function loadCategories() {
+      try {
+        const res = await fetch('/api/client-categories');
+        allCategories = await res.json();
+        // Populează dropdown-ul din modal
+        populateCategorySelect();
+      } catch (e) {
+        console.error('Eroare la încărcarea categoriilor:', e);
+      }
+    }
+
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products-flat');
+        products = await res.json();
+      } catch (e) {
+        console.error('Eroare la încărcarea produselor:', e);
+      }
+    }
+
+    function populateCategorySelect() {
+      const select = document.getElementById('newCategory');
+      const currentOptions = Array.from(select.options).map(o => o.value);
+      
+      // Păstrează doar prima opțiune (placeholder)
+      select.innerHTML = '<option value="">-- Selectează sau introdu nouă --</option>';
+      
+      // Adaugă categoriile existente
+      allCategories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+      
+      // Adaugă opțiunea pentru categorie nouă
+      const newOption = document.createElement('option');
+      newOption.value = '__new__';
+      newOption.textContent = '+ Adaugă categorie nouă...';
+      select.appendChild(newOption);
+    }
+
+    function renderClientList(clients) {
+      const container = document.getElementById('clientsList');
+      
+      if (clients.length === 0) {
+        container.innerHTML = '<div class="empty-state">Niciun client găsit</div>';
+        return;
+      }
+      
+      container.innerHTML = clients.map(c => `
+        <div class="client-item ${selectedClient?.id === c.id ? 'active' : ''}" 
+             onclick="selectClient('${c.id}')">
+          <span class="client-name">${escapeHtml(c.name)}</span>
+          <span class="client-category">${escapeHtml(c.category || '-')}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectClient(id) {
+      selectedClient = allClients.find(c => c.id === id);
+      renderClientList(allClients);
+      renderClientDetails();
+    }
+
+    function renderClientDetails() {
+      const container = document.getElementById('clientDetails');
+      
+      if (!selectedClient) {
+        container.innerHTML = '<div class="empty-state">Selectează un client din listă</div>';
+        return;
+      }
+
+      const c = selectedClient;
+      const prices = c.prices || {};
+      const priceEntries = Object.entries(prices);
+      
+      // Generează options pentru categorii
+      const categoryOptions = allCategories.map(cat => 
+        `<option value="${escapeHtml(cat)}" ${cat === c.category ? 'selected' : ''}>${escapeHtml(cat)}</option>`
+      ).join('');
+
+      container.innerHTML = `
+        <h2 style="margin-top: 0; margin-bottom: 0.5rem;">${escapeHtml(c.name)}</h2>
+        
+        <div class="detail-row">
+          <div class="detail-label">🏢 CUI Firmă</div>
+          <div class="detail-value">${c.cui ? escapeHtml(c.cui) : '<em style="color: #64748b;">Nesetat</em>'}</div>
+          
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <input type="text" id="editCui" class="input" placeholder="RO12345678" value="${c.cui ? escapeHtml(c.cui) : ''}" style="width: 200px; display: inline-block;">
+            <button class="btnSuccess" onclick="saveCui()" style="display: inline-block; margin-left: 0.5rem;">Salvează</button>
+          </div>
+          <div id="cuiMsg" class="msg"></div>
+        </div>
+        
+        <hr style="border-color: #334155; margin: 1.5rem 0;">
+        
+        <div class="detail-row">
+          <div class="detail-label">Categorie / Zonă</div>
+          <div class="detail-value">${escapeHtml(c.category || '-')}</div>
+          
+          <div class="category-editor">
+            <select id="editCategory" class="input">
+              <option value="">-- Schimbă în --</option>
+              ${categoryOptions}
+              <option value="__new__">+ Categorie nouă...</option>
+            </select>
+            <input type="text" id="newCategoryInput" class="input" placeholder="Categorie nouă...">
+            <button class="btnSuccess" onclick="saveCategory()">Salvează</button>
+          </div>
+          <div id="categoryMsg" class="msg"></div>
+          
+          <hr style="border-color: #334155; margin: 1.5rem 0;">
+          
+          <div class="detail-label">Termen de plată (zile)</div>
+          <div class="detail-value">${c.payment_terms !== undefined ? c.payment_terms : 0} zile</div>
+          
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <input type="number" id="editPaymentTerms" class="input" placeholder="0" min="0" max="365" value="${c.payment_terms !== undefined ? c.payment_terms : 0}" style="width: 120px; display: inline-block;">
+            <button class="btnSuccess" onclick="savePaymentTerms()" style="display: inline-block; margin-left: 0.5rem;">Salvează</button>
+          </div>
+          <div id="paymentTermsMsg" class="msg"></div>
+        </div>
+        
+        <hr style="border-color: #334155; margin: 1.5rem 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h4 style="margin: 0;">💰 Prețuri Speciale (${priceEntries.length})</h4>
+          <button class="btnSuccess" onclick="openPriceModal()">➕ Adaugă preț</button>
+        </div>
+        
+        ${priceEntries.length > 0 ? `
+          <div style="background: #0f172a; padding: 1rem; border-radius: 0.5rem; max-height: 300px; overflow-y: auto;">
+            ${priceEntries
+              .map(([prodId, price]) => {
+                const prod = products.find(p => String(p.id) === String(prodId));
+                return { prodId, price, prodName: prod ? prod.name : `Produs ${prodId}` };
+              })
+              .sort((a, b) => a.prodName.localeCompare(b.prodName, 'ro'))
+              .map(({ prodId, price, prodName }) => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #334155;">
+                  <span>${escapeHtml(prodName)}</span>
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="color: #38bdf8; font-weight: 600;">${Number(price).toFixed(2)} RON</span>
+                    <button class="btn-remove" onclick="removePrice('${prodId}')">✕</button>
+                  </div>
+                </div>
+              `).join('')}
+          </div>
+        ` : '<p style="color: #64748b; font-style: italic;">Nu are prețuri speciale</p>'}
+      `;
+
+      // Handler pentru schimbarea categoriei
+      const catSelect = document.getElementById('editCategory');
+      const catInput = document.getElementById('newCategoryInput');
+      
+      if (catSelect) {
+        catSelect.onchange = () => {
+          if (catSelect.value === '__new__') {
+            catInput.style.display = 'block';
+            catInput.focus();
+          } else {
+            catInput.style.display = 'none';
+          }
+        };
+      }
+    }
+
+    async function saveCategory() {
+      if (!selectedClient) return;
+      
+      const select = document.getElementById('editCategory');
+      const input = document.getElementById('newCategoryInput');
+      const msg = document.getElementById('categoryMsg');
+      
+      let category = select.value === '__new__' ? input.value.trim() : select.value;
+      
+      if (!category) {
+        msg.textContent = '❌ Selectează sau introdu o categorie';
+        msg.className = 'msg error';
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/clients/${selectedClient.id}/category`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category })
+        });
+        
+        if (res.ok) {
+          msg.textContent = '✅ Categorie salvată!';
+          msg.className = 'msg success';
+          selectedClient.category = category;
+          await loadCategories();
+          setTimeout(() => {
+            renderClientList(allClients);
+            renderClientDetails();
+          }, 500);
+        } else {
+          const data = await res.json();
+          msg.textContent = '❌ ' + (data.error || 'Eroare');
+          msg.className = 'msg error';
+        }
+      } catch (e) {
+        msg.textContent = '❌ Eroare de rețea';
+        msg.className = 'msg error';
+      }
+    }
+
+    // Salvează termenul de plată
+    async function savePaymentTerms() {
+      if (!selectedClient) return;
+      
+      const paymentTerms = parseInt(document.getElementById('editPaymentTerms').value) || 0;
+      const msg = document.getElementById('paymentTermsMsg');
+      
+      try {
+        const res = await fetch(`/api/clients/${selectedClient.id}/payment-terms`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_terms: paymentTerms })
+        });
+        
+        if (res.ok) {
+          msg.textContent = '✅ Termen de plată salvat!';
+          msg.className = 'msg success';
+          selectedClient.payment_terms = paymentTerms;
+          setTimeout(() => {
+            renderClientDetails();
+          }, 500);
+        } else {
+          const data = await res.json();
+          msg.textContent = '❌ ' + (data.error || 'Eroare');
+          msg.className = 'msg error';
+        }
+      } catch (e) {
+        msg.textContent = '❌ Eroare de rețea';
+        msg.className = 'msg error';
+      }
+    }
+
+    // Salvează CUI
+    async function saveCui() {
+      if (!selectedClient) return;
+      
+      const cui = document.getElementById('editCui').value.trim();
+      const msg = document.getElementById('cuiMsg');
+      
+      try {
+        const res = await fetch(`/api/clients/${selectedClient.id}/cui`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cui })
+        });
+        
+        if (res.ok) {
+          msg.textContent = '✅ CUI salvat!';
+          msg.className = 'msg success';
+          selectedClient.cui = cui || null;
+          setTimeout(() => {
+            renderClientDetails();
+          }, 500);
+        } else {
+          const data = await res.json();
+          msg.textContent = '❌ ' + (data.error || 'Eroare');
+          msg.className = 'msg error';
+        }
+      } catch (e) {
+        msg.textContent = '❌ Eroare de rețea';
+        msg.className = 'msg error';
+      }
+    }
+
+    // Modal funcții
+    function openModal() {
+      document.getElementById('addModal').classList.add('active');
+      document.getElementById('newName').focus();
+    }
+
+    function closeModal() {
+      document.getElementById('addModal').classList.remove('active');
+      document.getElementById('addClientForm').reset();
+      document.getElementById('pricesContainer').innerHTML = '';
+      document.getElementById('formMsg').textContent = '';
+    }
+
+    function addPriceRow() {
+      const container = document.getElementById('pricesContainer');
+      const rowId = Date.now();
+      
+      const row = document.createElement('div');
+      row.className = 'price-item';
+      row.id = `price-${rowId}`;
+      
+      row.innerHTML = `
+        <select class="input product-select" style="flex: 2;">
+          <option value="">-- Selectează produs --</option>
+          ${products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+        <input type="number" class="input" placeholder="Preț" step="0.01" min="0" style="flex: 1;">
+        <button type="button" class="btn-remove" onclick="document.getElementById('price-${rowId}').remove()">✕</button>
+      `;
+      
+      container.appendChild(row);
+    }
+
+    // Submit form
+    document.getElementById('addClientForm').onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('newName').value.trim();
+      const cui = document.getElementById('newCui').value.trim();
+      const categorySelect = document.getElementById('newCategory').value;
+      const categoryText = document.getElementById('newCategoryText').value.trim();
+      const paymentTerms = parseInt(document.getElementById('newPaymentTerms').value) || 30;
+      
+      let category = categorySelect === '__new__' ? categoryText : (categorySelect || categoryText);
+      
+      if (!name || !category) {
+        document.getElementById('formMsg').textContent = '❌ Completează numele și categoria';
+        document.getElementById('formMsg').className = 'msg error';
+        return;
+      }
+      
+      // Colectează prețurile
+      const prices = {};
+      document.querySelectorAll('.price-item').forEach(row => {
+        const selects = row.querySelectorAll('select, input');
+        const prodId = selects[0].value;
+        const price = selects[1].value;
+        if (prodId && price) {
+          prices[prodId] = parseFloat(price);
+        }
+      });
+      
+      try {
+        const res = await fetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, cui, category, prices, payment_terms: paymentTerms })
+        });
+        
+        if (res.ok) {
+          document.getElementById('formMsg').textContent = '✅ Client adăugat cu succes!';
+          document.getElementById('formMsg').className = 'msg success';
+          setTimeout(() => {
+            closeModal();
+            loadClients();
+            loadCategories();
+          }, 1000);
+        } else {
+          const data = await res.json();
+          document.getElementById('formMsg').textContent = '❌ ' + (data.error || 'Eroare');
+          document.getElementById('formMsg').className = 'msg error';
+        }
+      } catch (err) {
+        document.getElementById('formMsg').textContent = '❌ Eroare de rețea';
+        document.getElementById('formMsg').className = 'msg error';
+      }
+    };
+
+    // Search
+    document.getElementById('searchInput').oninput = (e) => {
+      const q = e.target.value.toLowerCase();
+      const filtered = allClients.filter(c => 
+        c.name.toLowerCase().includes(q) ||
+        (c.category && c.category.toLowerCase().includes(q))
+      );
+      renderClientList(filtered);
+    };
+
+    // Închide modal la click în afară
+    document.getElementById('addModal').onclick = (e) => {
+      if (e.target === document.getElementById('addModal')) {
+        closeModal();
+      }
+    };
+
+    // ============ PRETURI SPECIALE ============
+    
+    window.openPriceModal = function() {
+      if (!selectedClient) return;
+      document.getElementById('priceModal').classList.add('active');
+      document.getElementById('priceSearchInput').value = '';
+      document.getElementById('priceSearchInput').focus();
+      document.getElementById('priceSearchResults').innerHTML = '';
+      document.getElementById('selectedProductInfo').style.display = 'none';
+      document.getElementById('specialPriceInput').value = '';
+      document.getElementById('priceMsg').textContent = '';
+    };
+    
+    window.closePriceModal = function() {
+      document.getElementById('priceModal').classList.remove('active');
+    };
+    
+    document.getElementById('priceSearchInput').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const resultsDiv = document.getElementById('priceSearchResults');
+      
+      if (!q) {
+        resultsDiv.innerHTML = '';
+        return;
+      }
+      
+      const filtered = products.filter(p => {
+        const nameMatch = p.name && p.name.toLowerCase().includes(q);
+        const gtinMatch = p.gtin && String(p.gtin).includes(q);
+        const gtinsMatch = p.gtins && p.gtins.some(g => String(g).includes(q));
+        return nameMatch || gtinMatch || gtinsMatch;
+      }).slice(0, 10);
+      
+      if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding: 1rem; color: #64748b;">Niciun produs gasit</div>';
+        return;
+      }
+      
+      resultsDiv.innerHTML = filtered.map(p => {
+        const gtinText = p.gtin ? ` (GTIN: ${p.gtin})` : '';
+        const currentPrice = p.price ? `<span style="color: #64748b; font-size: 0.85rem;">${Number(p.price).toFixed(2)} RON</span>` : '';
+        return `
+          <div class="client-item" onclick="selectProductForPrice('${p.id}', '${escapeHtml(p.name)}', ${p.price || 0})" style="cursor: pointer;">
+            <span>${escapeHtml(p.name)}${gtinText}</span>
+            ${currentPrice}
+          </div>
+        `;
+      }).join('');
+    });
+    
+    window.selectProductForPrice = function(prodId, prodName, currentPrice) {
+      document.getElementById('selectedProductId').value = prodId;
+      document.getElementById('selectedProductName').textContent = prodName;
+      document.getElementById('selectedProductPrice').textContent = currentPrice > 0 
+        ? `Pret standard: ${currentPrice.toFixed(2)} RON` 
+        : 'Fara pret standard';
+      document.getElementById('selectedProductInfo').style.display = 'block';
+      document.getElementById('priceSearchResults').innerHTML = '';
+      document.getElementById('priceSearchInput').value = '';
+      document.getElementById('specialPriceInput').focus();
+    };
+    
+    window.saveSpecialPrice = async function() {
+      if (!selectedClient) return;
+      
+      const prodId = document.getElementById('selectedProductId').value;
+      const price = document.getElementById('specialPriceInput').value;
+      const msg = document.getElementById('priceMsg');
+      
+      if (!prodId) {
+        msg.textContent = 'Selecteaza un produs';
+        msg.className = 'msg error';
+        return;
+      }
+      
+      if (!price || price <= 0) {
+        msg.textContent = 'Introdu un pret valid';
+        msg.className = 'msg error';
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/clients/${selectedClient.id}/prices`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            product_id: prodId, 
+            special_price: parseFloat(price) 
+          })
+        });
+        
+        if (res.ok) {
+          msg.textContent = 'Pret salvat!';
+          msg.className = 'msg success';
+          if (!selectedClient.prices) selectedClient.prices = {};
+          selectedClient.prices[prodId] = parseFloat(price);
+          setTimeout(() => {
+            closePriceModal();
+            renderClientDetails();
+          }, 800);
+        } else {
+          const err = await res.json();
+          msg.textContent = err.error || 'Eroare';
+          msg.className = 'msg error';
+        }
+      } catch (e) {
+        msg.textContent = 'Eroare de retea';
+        msg.className = 'msg error';
+      }
+    };
+    
+    window.removePrice = async function(prodId) {
+      if (!selectedClient) return;
+      if (!confirm('Stergi acest pret special?')) return;
+      
+      try {
+        const res = await fetch(`/api/clients/${selectedClient.id}/prices/${prodId}`, {
+          method: 'DELETE'
+        });
+        
+        if (res.ok) {
+          if (selectedClient.prices && selectedClient.prices[prodId]) {
+            delete selectedClient.prices[prodId];
+          }
+          renderClientDetails();
+        } else {
+          alert('Eroare la stergere');
+        }
+      } catch (e) {
+        alert('Eroare de retea');
+      }
+    };
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Init
+    init();
+  </script>
+</body>
+</html>

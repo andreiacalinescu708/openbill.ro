@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>oBill - Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="global.css" />
+  <style>
+    /* Stiluri specifice doar pentru dashboard */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: var(--space-6);
+      margin-top: var(--space-8);
+    }
+
+    .dashboard-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      padding: var(--space-6);
+      transition: all var(--transition-base);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dashboard-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-500), var(--success-500));
+      opacity: 0;
+      transition: opacity var(--transition-base);
+    }
+
+    .dashboard-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(148, 163, 184, 0.3);
+      box-shadow: var(--shadow-xl);
+    }
+
+    .dashboard-card:hover::before {
+      opacity: 1;
+    }
+
+    .dashboard-card-icon {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin-bottom: var(--space-4);
+      box-shadow: 0 8px 16px rgba(37, 99, 235, 0.3);
+    }
+
+    .dashboard-card.success .dashboard-card-icon {
+      background: linear-gradient(135deg, var(--success-600), var(--success-700));
+      box-shadow: 0 8px 16px rgba(22, 163, 74, 0.3);
+    }
+
+    .dashboard-card.warning .dashboard-card-icon {
+      background: linear-gradient(135deg, var(--warning-500), var(--warning-600));
+      box-shadow: 0 8px 16px rgba(245, 158, 11, 0.3);
+    }
+
+    .dashboard-card h3 {
+      font-size: 1.25rem;
+      margin-bottom: var(--space-2);
+    }
+
+    .dashboard-card p {
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      margin-bottom: var(--space-5);
+    }
+
+    .dashboard-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .dashboard-actions .btn {
+      justify-content: flex-start;
+      padding: var(--space-4);
+    }
+
+    .user-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3) var(--space-4);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-6);
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .trial-countdown {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: white;
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+    
+    .plan-badge {
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .plan-starter { background: #10b981; color: #000; }
+    .plan-pro { background: #3b82f6; color: #fff; }
+    .plan-enterprise { background: #8b5cf6; color: #fff; }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="index.html" class="navbar-brand" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none;">
+        <img src="favicon.svg" alt="oBill" style="height: 36px; width: auto;">
+        <span style="font-size: 1.5rem; font-weight: 700; color: var(--primary-500, #3b82f6);">openBill</span>
+      </a>
+      <div class="navbar-actions" style="display: flex; align-items: center; gap: var(--space-4);">
+        <div id="trialCountdown" style="display: none;"></div>
+        <span id="planBadge" class="plan-badge" style="display: none;"></span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <!-- User Bar -->
+    <div class="user-bar" id="userBar"></div>
+
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+      <!-- Teren (ACUM PRIMUL) -->
+      <div class="dashboard-card success">
+        <div class="dashboard-card-icon">🚚</div>
+        <h3>Teren</h3>
+        <p>Clienți, comenzi mobile și verificare prețuri</p>
+        <div class="dashboard-actions">
+          <a href="adauga_comanda.html" class="btn btn-success">👥 Lista Clienți</a>
+          <a href="checkprice.html" class="btn btn-success">💰 Produse și Prețuri</a>
+          <a href="foi_parcurs.html" class="btn btn-success">📋 Foi de Parcurs</a>
+        </div>
+      </div>
+
+      <!-- Depozit (ACUM AL DOILEA) -->
+      <div class="dashboard-card">
+        <div class="dashboard-card-icon">📦</div>
+        <h3>Depozit</h3>
+        <p>Recepție marfă, gestiune stoc și procesare comenzi</p>
+        <div class="dashboard-actions">
+          <a href="stock.html" class="btn btn-primary">➕ Recepție marfă</a>
+          <a href="checkstock.html" class="btn btn-primary">📋 Inventar stoc</a>
+          <a href="orders.html" class="btn btn-primary">🧾 Comenzi</a>
+        </div>
+      </div>
+
+            <!-- Birou -->
+      <div class="dashboard-card warning">
+        <div class="dashboard-card-icon">📊</div>
+        <h3>Birou</h3>
+        <p>Administrare, rapoarte și setări sistem</p>
+        <div class="dashboard-actions">
+          <a href="clienti.html" class="btn btn-warning">⚙️ Administrare clienți</a>
+          <a href="companie.html" class="btn btn-warning">🏢 Companie</a>
+          <a href="rapoarte.html" class="btn btn-warning">📈 Rapoarte</a>
+        </div>
+      </div>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script src="script.js"></script>
+  
+  <script>
+    // Verifică rolul și ascunde butoanele nepotrivite
+    (async function checkRoleAndHideButtons() {
+      try {
+        const res = await fetch('/api/auth/check');
+        const data = await res.json();
+        
+        if (!data.loggedIn) return;
+        
+        const role = data.user.role;
+        
+        // User: poate vedea Rapoarte și Încarcă Raport Excel, dar NU Administrare clienți și Companie
+        if (role === 'user') {
+          const adminClientiBtn = document.querySelector('a[href="clienti.html"]');
+          const companieBtn = document.querySelector('a[href="companie.html"]');
+          if (adminClientiBtn) adminClientiBtn.style.display = 'none';
+          if (companieBtn) companieBtn.style.display = 'none';
+        }
+        
+        // Admin: poate vedea tot din Birou EXCEPTAT Companie
+        if (role === 'admin') {
+          const companieBtn = document.querySelector('a[href="companie.html"]');
+          if (companieBtn) companieBtn.style.display = 'none';
+        }
+        
+        // SuperAdmin: vede tot (nu ascundem nimic)
+      } catch (e) {
+        console.error('Eroare verificare rol:', e);
+      }
+    })();
+    
+    // Verifică planul companiei și aplică restricții
+    (async function checkPlanAndApplyRestrictions() {
+      try {
+        const res = await fetch('/api/company/plan');
+        const planData = await res.json();
+        
+        console.log('Plan companie:', planData);
+        
+        const plan = planData.plan || 'starter';
+        const trialExpires = planData.trial_expires_at;
+        const status = planData.status;
+        
+        // Afișează badge plan
+        const planBadge = document.getElementById('planBadge');
+        if (planBadge) {
+          planBadge.textContent = plan;
+          planBadge.className = `plan-badge plan-${plan}`;
+          planBadge.style.display = 'inline-block';
+        }
+        
+        // Countdown trial
+        const trialCountdown = document.getElementById('trialCountdown');
+        if (trialCountdown && trialExpires && status === 'trial') {
+          const updateCountdown = () => {
+            const now = new Date();
+            const expiry = new Date(trialExpires);
+            const diff = expiry - now;
+            
+            if (diff <= 0) {
+              trialCountdown.innerHTML = '⏰ Trial expirat';
+              return;
+            }
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            
+            trialCountdown.innerHTML = `⏰ ${days}z ${hours}h trial`;
+            trialCountdown.className = 'trial-countdown';
+            trialCountdown.style.display = 'flex';
+          };
+          
+          updateCountdown();
+          setInterval(updateCountdown, 60000); // Update every minute
+        }
+        
+        // Aplică restricții în funcție de plan
+        // STARTER: ascunde Foi de parcurs și Rapoarte
+        if (plan === 'starter') {
+          // Ascunde butonul Foi de parcurs din Teren
+          const foiParcursBtn = document.querySelector('a[href="foi_parcurs.html"]');
+          if (foiParcursBtn) foiParcursBtn.style.display = 'none';
+          
+          // Ascunde butonul Rapoarte din Birou
+          const rapoarteBtn = document.querySelector('a[href="rapoarte.html"]');
+          if (rapoarteBtn) rapoarteBtn.style.display = 'none';
+        }
+        
+      } catch (e) {
+        console.error('Eroare verificare plan:', e);
+      }
+    })();
+    
+  </script>
+</body>
+</html>
