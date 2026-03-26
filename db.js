@@ -497,6 +497,20 @@ async function ensureTelegramMigrations() {
       )
     `);
     
+    // Verificăm și adăugăm coloanele lipsă (pentru cazul în care tabela există parțial)
+    try {
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS chat_id TEXT NOT NULL DEFAULT ''`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS company_id TEXT NOT NULL DEFAULT ''`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS username TEXT`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS first_name TEXT`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS last_name TEXT`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+      await q(`ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+    } catch (colError) {
+      // Ignorăm erorile dacă coloanele există deja
+    }
+    
     await q(`CREATE INDEX IF NOT EXISTS idx_telegram_users_chat_id ON public.telegram_users(chat_id)`);
     await q(`CREATE INDEX IF NOT EXISTS idx_telegram_users_company_id ON public.telegram_users(company_id)`);
     
@@ -515,6 +529,16 @@ async function ensureTelegramMigrations() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    
+    // Verificăm și adăugăm coloanele lipsă
+    try {
+      await q(`ALTER TABLE public.telegram_invoices ADD COLUMN IF NOT EXISTS chat_id TEXT NOT NULL DEFAULT ''`);
+      await q(`ALTER TABLE public.telegram_invoices ADD COLUMN IF NOT EXISTS file_id TEXT NOT NULL DEFAULT ''`);
+      await q(`ALTER TABLE public.telegram_invoices ADD COLUMN IF NOT EXISTS matched_products JSONB NOT NULL DEFAULT '[]'::jsonb`);
+      await q(`ALTER TABLE public.telegram_invoices ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`);
+    } catch (colError) {
+      // Ignorăm erorile dacă coloanele există deja
+    }
     
     await q(`CREATE INDEX IF NOT EXISTS idx_telegram_invoices_company_id ON public.telegram_invoices(company_id)`);
     await q(`CREATE INDEX IF NOT EXISTS idx_telegram_invoices_chat_id ON public.telegram_invoices(chat_id)`);
