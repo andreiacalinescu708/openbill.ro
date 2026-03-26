@@ -303,14 +303,26 @@ async function handleActivationCode(pool, chatId, code, userInfo) {
       return;
     }
 
-    // Salvăm asocierea în baza de date
-    await pool.query(
-      `INSERT INTO public.telegram_users (chat_id, company_id, username, first_name, last_name, is_active)
-       VALUES ($1, $2, $3, $4, $5, true)
-       ON CONFLICT (chat_id, company_id) 
-       DO UPDATE SET is_active = true, updated_at = NOW()`,
-      [chatId.toString(), company.id, userInfo.username, userInfo.first_name, userInfo.last_name]
+    // Salvăm asocierea în baza de date (fără ON CONFLICT - verificăm manual)
+    const existingUser = await pool.query(
+      'SELECT id FROM public.telegram_users WHERE chat_id = $1 AND company_id = $2',
+      [chatId.toString(), company.id]
     );
+    
+    if (existingUser.rows.length > 0) {
+      // Update existing
+      await pool.query(
+        'UPDATE public.telegram_users SET is_active = true, updated_at = NOW(), username = $3, first_name = $4, last_name = $5 WHERE chat_id = $1 AND company_id = $2',
+        [chatId.toString(), company.id, userInfo.username, userInfo.first_name, userInfo.last_name]
+      );
+    } else {
+      // Insert new
+      await pool.query(
+        `INSERT INTO public.telegram_users (chat_id, company_id, username, first_name, last_name, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)`,
+        [chatId.toString(), company.id, userInfo.username, userInfo.first_name, userInfo.last_name]
+      );
+    }
 
     // Ștergem sesiunea
     userSessions.delete(chatId);
