@@ -1559,19 +1559,48 @@ app.get("/api/telegram/companies", async (req, res) => {
       return res.status(403).json({ error: "Acces interzis" });
     }
 
-    const result = await db.q(`
+    // Obținem companiile de bază
+    const companiesResult = await db.q(`
       SELECT 
         c.id, 
         c.name, 
         c.schema_name, 
-        c.admin_email, 
+        c.admin_email,
+        c.plan,
+        c.status,
+        c.trial_expires_at,
         c.telegram_enabled, 
         c.telegram_code,
         (SELECT COUNT(*) FROM public.telegram_users tu WHERE tu.company_id = c.id AND tu.is_active = true) as telegram_users
       FROM public.companies c
-      WHERE c.status = 'active'
       ORDER BY c.name
     `);
+    
+    // Pentru fiecare companie, obținem numărul de utilizatori și clienți din schema respectivă
+    const result = { rows: [] };
+    for (const company of companiesResult.rows) {
+      try {
+        const schemaName = company.schema_name;
+        const userCountQuery = 'SELECT COUNT(*) as count FROM "' + schemaName + '".users WHERE is_approved = true';
+        const clientCountQuery = 'SELECT COUNT(*) as count FROM "' + schemaName + '".clients';
+        
+        const userCount = await db.q(userCountQuery);
+        const clientCount = await db.q(clientCountQuery);
+        
+        result.rows.push({
+          ...company,
+          user_count: parseInt(userCount.rows[0].count),
+          client_count: parseInt(clientCount.rows[0].count)
+        });
+      } catch (schemaError) {
+        // Dacă schema nu există sau are erori, returnăm 0
+        result.rows.push({
+          ...company,
+          user_count: 0,
+          client_count: 0
+        });
+      }
+    }
     
     res.json({ success: true, companies: result.rows });
   } catch (e) {
