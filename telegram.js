@@ -426,6 +426,7 @@ async function handlePdfUpload(pool, chatId, document, companyId) {
     } catch (pdfError) {
       console.error('Eroare la extragerea textului din PDF:', pdfError);
       extractedText = '[Eroare la procesarea PDF-ului]';
+    }
 
     await bot.sendMessage(chatId, '📊 Se caută produsele în baza de date...');
 
