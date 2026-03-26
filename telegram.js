@@ -483,39 +483,164 @@ async function matchProducts(pool, schemaName, text) {
     );
 
     const products = productsResult.rows;
-    const textLower = text.toLowerCase();
-
-    for (const product of products) {
-      const matchScore = calculateMatchScore(product, textLower);
+    
+    // Parsează liniile de produse din factură
+    const invoiceLines = parseInvoiceLines(text);
+    console.log(`📄 Linii produse găsite în factură: ${invoiceLines.length}`);
+    
+    for (const line of invoiceLines) {
+      console.log(`🔍 Procesare linie: "${line.name}" LOT:${line.lot} EXP:${line.expiresAt} QTY:${line.quantity}`);
       
-      if (matchScore > 0.3) { // Prag de similaritate
-        // Căutăm și prețul în text
-        const price = extractPriceForProduct(text, product.name);
+      // Căutăm produsul în DB după nume sau GTIN
+      let matchedProduct = null;
+      let bestScore = 0;
+      
+      for (const product of products) {
+        const score = calculateMatchScoreForLine(product, line);
+        if (score > bestScore && score > 0.5) {
+          bestScore = score;
+          matchedProduct = product;
+        }
+      }
+      
+      if (matchedProduct) {
+        console.log(`✅ Produs găsit: ${matchedProduct.name} (scor: ${bestScore})`);
         
-        // Căutăm cantitatea în text
-        const quantity = extractQuantityForProduct(text, product.name);
+        // Adăugăm în stock automat
+        await addToStock(pool, schemaName, matchedProduct, line);
         
         matches.push({
-          product_id: product.id,
-          product_name: product.name,
-          gtin: product.gtin,
-          category: product.category,
-          match_score: matchScore,
-          suggested_price: price,
-          suggested_quantity: quantity,
-          confirmed: false
+          product_id: matchedProduct.id,
+          product_name: matchedProduct.name,
+          gtin: matchedProduct.gtin,
+          category: matchedProduct.category,
+          lot: line.lot,
+          expires_at: line.expiresAt,
+          quantity: line.quantity,
+          match_score: bestScore,
+          added_to_stock: true
+        });
+      } else {
+        console.log(`❌ Produs negăsit pentru: ${line.name}`);
+        matches.push({
+          product_name: line.name,
+          lot: line.lot,
+          expires_at: line.expiresAt,
+          quantity: line.quantity,
+          match_score: 0,
+          added_to_stock: false,
+          not_found: true
         });
       }
     }
-
-    // Sortăm după scorul de matching
-    matches.sort((a, b) => b.match_score - a.match_score);
 
   } catch (error) {
     console.error('Eroare la matchProducts:', error);
   }
 
   return matches;
+}
+
+// Parsează liniile de produse din textul facturii
+function parseInvoiceLines(text) {
+  const lines = [];
+  const textLines = text.split('\n');
+  
+  // Pattern pentru linii de produs din factură
+  // Ex: "Scutece chilot adulti Seni Active Classic Small pachet a'30 LOT:1402437237 2031-01-31 30 58.00"
+  const productPattern = /(.+?)(?:\s+LOT[:\s]*([A-Z0-9]+))?(?:\s+(\d{4}-\d{2}-\d{2}))?(?:\s+(\d+))?(?:\s+\d+[.,]\d+)?\s*$/i;
+  
+  for (const line of textLines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.length < 10) continue;
+    
+    // Verificăm dacă linia arată ca un produs (conține cuvinte cheie sau pattern)
+    const match = trimmed.match(productPattern);
+    if (match) {
+      const name = match[1]?.trim();
+      const lot = match[2] || extractLotFromLine(trimmed);
+      const expiresAt = match[3] || extractDateFromLine(trimmed);
+      const quantity = parseInt(match[4]) || extractQuantityFromLine(trimmed) || 1;
+      
+      // Verificăm dacă numele pare a fi un produs (are lungime rezonabilă)
+      if (name && name.length > 5 && !name.match(/^(factura|total|valoare|tva|cif|nr\.?\s*doc)/i)) {
+        lines.push({
+          name: name,
+          lot: lot || 'N/A',
+          expiresAt: expiresAt || '2099-12-31',
+          quantity: quantity
+        });
+      }
+    }
+  }
+  
+  return lines;
+}
+
+// Extrage lotul din linie
+function extractLotFromLine(line) {
+  const lotMatch = line.match(/LOT[:\s]*([A-Z0-9]+)/i);
+  return lotMatch ? lotMatch[1] : null;
+}
+
+// Extrage data din linie
+function extractDateFromLine(line) {
+  const dateMatch = line.match(/(\d{4}-\d{2}-\d{2})/);
+  return dateMatch ? dateMatch[1] : null;
+}
+
+// Extrage cantitatea din linie
+function extractQuantityFromLine(line) {
+  // Caută numărul înainte de preț sau la final
+  const qtyMatch = line.match(/(\d+)\s+(?:\d+[.,]\d+|lei|ron|$)/i);
+  return qtyMatch ? parseInt(qtyMatch[1]) : null;
+}
+
+// Calculează scorul de matching pentru o linie de factură
+function calculateMatchScoreForLine(product, line) {
+  const productName = product.name.toLowerCase();
+  const lineName = line.name.toLowerCase();
+  
+  // Match exact
+  if (productName === lineName) return 1.0;
+  
+  // Conține numele produsului
+  if (lineName.includes(productName) || productName.includes(lineName)) return 0.95;
+  
+  // Cuvinte cheie comune
+  const productWords = productName.split(/\s+/).filter(w => w.length > 3);
+  const lineWords = lineName.split(/\s+/).filter(w => w.length > 3);
+  
+  let commonWords = 0;
+  for (const word of productWords) {
+    if (lineWords.some(lw => lw.includes(word) || word.includes(lw))) {
+      commonWords++;
+    }
+  }
+  
+  if (productWords.length > 0) {
+    return commonWords / productWords.length;
+  }
+  
+  return 0;
+}
+
+// Adaugă produsul în stock
+async function addToStock(pool, schemaName, product, line) {
+  try {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2);
+    const gtin = product.gtin || 'N/A';
+    
+    await pool.query(
+      `INSERT INTO ${schemaName}.stock (id, gtin, product_name, lot, expires_at, qty, location, warehouse)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, gtin, product.name, line.lot, line.expiresAt, line.quantity, 'A', 'depozit']
+    );
+    
+    console.log(`✅ Adăugat în stock: ${product.name} | LOT:${line.lot} | QTY:${line.quantity}`);
+  } catch (error) {
+    console.error(`❌ Eroare la adăugare în stock: ${error.message}`);
+  }
 }
 
 function calculateMatchScore(product, text) {
