@@ -177,18 +177,30 @@ function setupMessageHandlers(pool) {
   // Handler pentru mesaje text (coduri de activare)
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text;
+    const text = msg.text?.trim();
     
     // Ignorăm comenzile (încep cu /)
     if (!text || text.startsWith('/')) return;
     
+    console.log(`📨 Mesaj primit de la ${chatId}: "${text}"`);
+    
     const session = userSessions.get(chatId);
     
-    // Procesare cod de activare
-    if (session?.step === 'waiting_code') {
+    // Procesare cod de activare - acceptăm și fără session (direct)
+    // Verificăm dacă textul arată ca un cod (8 caractere alfanumerice)
+    const looksLikeCode = /^[A-Z0-9]{8}$/i.test(text);
+    
+    if (session?.step === 'waiting_code' || looksLikeCode) {
+      console.log(`🔑 Procesare cod activare: "${text}"`);
       await handleActivationCode(pool, chatId, text, msg.from);
       return;
     }
+    
+    // Dacă nu e cod și nu e în session, informăm utilizatorul
+    await bot.sendMessage(chatId, 
+      '❓ Nu înțeleg mesajul.\n\n' +
+      'Folosește /start pentru a te conecta sau /help pentru ajutor.'
+    );
   });
 
   // Handler pentru documente (PDF)
@@ -259,11 +271,18 @@ function setupCallbackHandlers(pool) {
 
 async function handleActivationCode(pool, chatId, code, userInfo) {
   try {
+    console.log(`🔍 Căutare companie pentru cod: "${code}" (uppercase: "${code.toUpperCase()}")`);
+    
     // Căutăm compania după cod
     const result = await pool.query(
-      'SELECT id, name, telegram_enabled FROM public.companies WHERE telegram_code = $1 AND status = $2',
+      'SELECT id, name, telegram_enabled, telegram_code FROM public.companies WHERE telegram_code = $1 AND status = $2',
       [code.toUpperCase(), 'active']
     );
+    
+    console.log(`📊 Rezultat căutare: ${result.rows.length} companii găsite`);
+    if (result.rows.length > 0) {
+      console.log(`   Companie: ${result.rows[0].name}, enabled: ${result.rows[0].telegram_enabled}`);
+    }
 
     if (result.rows.length === 0) {
       await bot.sendMessage(chatId, 
