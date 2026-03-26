@@ -7,7 +7,7 @@
  */
 
 const TelegramBot = require('node-telegram-bot-api');
-const pdfParse = require('pdf-parse');
+const pdf = require('pdf-parse');
 const { Pool } = require('pg');
 
 // Configurare - TOKEN trebuie setat în .env
@@ -419,8 +419,15 @@ async function handlePdfUpload(pool, chatId, document, companyId) {
     await bot.sendMessage(chatId, '🔍 Se extrage textul din PDF...');
 
     // Extragem textul din PDF
-    const pdfData = await pdfParse(pdfBuffer);
-    const extractedText = pdfData.text;
+    let pdfData;
+    try {
+      pdfData = await pdf(pdfBuffer);
+    } catch (pdfError) {
+      console.error('Eroare pdf-parse:', pdfError);
+      // Încercăm cu buffer ca object
+      pdfData = await pdf({ data: pdfBuffer });
+    }
+    const extractedText = pdfData.text || '';
 
     await bot.sendMessage(chatId, '📊 Se caută produsele în baza de date...');
 
