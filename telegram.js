@@ -839,31 +839,41 @@ function parseManualLines(text) {
     const line = rawLine.trim();
     if (!line || line.length < 5) continue;
     
-    // Extragem lotul
-    const lotMatch = line.match(/LOT[:\s]*([A-Z0-9]+)/i);
+    // Pattern complet: Nume LOT:XXXX YYYY-MM-DD QTY
+    // Ex: Scutece chilot adulti Seni Active Classic Small pachet a'30 LOT:1402437237 2031-01-31 30
+    
+    // Extragem lotul (LOT: urmat de cifre/litere)
+    const lotMatch = line.match(/LOT[:\s]+([A-Z0-9]+)/i);
     const lot = lotMatch ? lotMatch[1] : 'N/A';
     
     // Extragem data (YYYY-MM-DD)
     const dateMatch = line.match(/(\d{4}-\d{2}-\d{2})/);
     const expiresAt = dateMatch ? dateMatch[1] : '2099-12-31';
     
-    // Extragem cantitatea (număr la final sau înainte de data)
+    // Extragem cantitatea - numărul de la final după dată
     let quantity = 1;
-    const qtyMatch = line.match(/(\d+)\s*(?:buc)?\s*$/i) || 
-                     line.match(/(\d+)\s+\d{4}-\d{2}-\d{2}/);
-    if (qtyMatch) {
-      quantity = parseInt(qtyMatch[1]);
+    // Cautăm pattern: DATA spatiu NUMAR (cantitatea)
+    const qtyAfterDate = line.match(/\d{4}-\d{2}-\d{2}\s+(\d+)(?:\s|$)/);
+    if (qtyAfterDate) {
+      quantity = parseInt(qtyAfterDate[1]);
+    } else {
+      // Fallback: ultimul număr din linie
+      const lastNumber = line.match(/(\d+)(?:\s*$|\s+buc)/i);
+      if (lastNumber) {
+        quantity = parseInt(lastNumber[1]);
+      }
     }
     
-    // Numele produsului (eliminăm LOT, data, cantitate)
-    let name = line
-      .replace(/LOT[:\s]*[A-Z0-9]+/i, '')
-      .replace(/\d{4}-\d{2}-\d{2}/, '')
-      .replace(/\d+\s*(?:buc)?\s*$/i, '')
-      .trim();
+    // Numele produsului = tot ce e înainte de LOT:
+    let name = line;
+    const lotIndex = line.toUpperCase().indexOf('LOT:');
+    if (lotIndex > 0) {
+      name = line.substring(0, lotIndex).trim();
+    }
     
     if (name.length > 3) {
       lines.push({ name, lot, expiresAt, quantity });
+      console.log(`✅ Parsat: "${name.substring(0, 40)}..." LOT:${lot} EXP:${expiresAt} QTY:${quantity}`);
     }
   }
   
