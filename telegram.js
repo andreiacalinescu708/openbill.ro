@@ -838,35 +838,36 @@ function parseManualLines(text) {
   // Unim liniile consecutive: dacă o linie nu are LOT dar următoarea are,
   // le unim (produs pe 2 rânduri din PDF)
   const mergedLines = [];
-  let pendingLine = null;
+  let pendingName = null;
   
   for (let i = 0; i < textLines.length; i++) {
     const line = textLines[i];
     const hasLot = /LOT[:\s]*[A-Z0-9]+/i.test(line);
     const hasDate = /\d{4}-\d{2}-\d{2}/.test(line);
     
-    if (hasLot && hasDate) {
-      // Linie completă - are și LOT și dată
-      if (pendingLine) {
-        // Dacă aveam o linie pending, o unim cu asta
-        mergedLines.push(pendingLine + ' ' + line);
-        pendingLine = null;
+    if (hasLot) {
+      // Această linie conține LOT - o procesăm
+      if (pendingName) {
+        // Dacă aveam un nume pending din linia anterioară, îl unim
+        mergedLines.push(pendingName + ' ' + line);
+        pendingName = null;
       } else {
         mergedLines.push(line);
       }
     } else if (!hasLot && !hasDate) {
-      // Doar nume produs - o păstrăm pentru următoarea linie
-      pendingLine = line;
-    } else if (hasLot && !hasDate && pendingLine) {
-      // Are LOT dar nu are dată, și avem pending - le unim
-      mergedLines.push(pendingLine + ' ' + line);
-      pendingLine = null;
+      // Nu are nici LOT nici dată - e numele produsului (sau parte din el)
+      if (pendingName) {
+        // Dacă aveam deja un nume pending, îl concatenăm
+        pendingName = pendingName + ' ' + line;
+      } else {
+        pendingName = line;
+      }
     }
   }
   
-  // Dacă a rămas ceva pending, îl adăugăm separat (poate fi incomplet)
-  if (pendingLine) {
-    mergedLines.push(pendingLine);
+  // Dacă a rămas ceva pending, îl adăugăm separat
+  if (pendingName) {
+    mergedLines.push(pendingName);
   }
   
   console.log(`📝 Linii după merge: ${mergedLines.length}`);
