@@ -837,7 +837,6 @@ function parseManualLines(text) {
   
   // Soluție simplă: procesăm fiecare linie individual
   // și căutăm produsele chiar dacă textul e fragmentat
-  const lines = [];
   
   for (const rawLine of textLines) {
     const line = rawLine.trim();
