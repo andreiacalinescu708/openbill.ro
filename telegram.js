@@ -7,7 +7,7 @@
  */
 
 const TelegramBot = require('node-telegram-bot-api');
-const pdfLib = require('pdf-parse');
+const PDFParser = require('pdf2json');
 const { Pool } = require('pg');
 
 // Configurare - TOKEN trebuie setat în .env
@@ -402,6 +402,39 @@ async function isTelegramEnabled(pool, companyId) {
 // FUNCȚII AUXILIARE - PROCESARE PDF
 // ============================================
 
+async function extractTextFromPdf(pdfBuffer) {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PDFParser();
+    
+    pdfParser.on('pdfParser_dataReady', (pdfData) => {
+      let text = '';
+      // Extragem textul din toate paginile
+      if (pdfData.formImage && pdfData.formImage.Pages) {
+        for (const page of pdfData.formImage.Pages) {
+          if (page.Texts) {
+            for (const textItem of page.Texts) {
+              if (textItem.R) {
+                for (const r of textItem.R) {
+                  text += r.T + ' ';
+                }
+              }
+            }
+          }
+        }
+      }
+      // Decodificăm caracterele speciale
+      text = decodeURIComponent(text.replace(/\+/g, ' '));
+      resolve(text);
+    });
+    
+    pdfParser.on('pdfParser_dataError', (error) => {
+      reject(error);
+    });
+    
+    pdfParser.parseBuffer(pdfBuffer);
+  });
+}
+
 async function handlePdfUpload(pool, chatId, document, companyId) {
   try {
     await bot.sendMessage(chatId, '📄 Se descarcă factura...');
@@ -422,8 +455,7 @@ async function handlePdfUpload(pool, chatId, document, companyId) {
     let extractedText = '';
     try {
       console.log('📄 Începere extracție text din PDF...');
-      const pdfData = await pdfLib.PDFParse(pdfBuffer);
-      extractedText = pdfData.text || '';
+      extractedText = await extractTextFromPdf(pdfBuffer);
       console.log(`✅ Text extras: ${extractedText.length} caractere`);
       console.log('📝 Primele 500 caractere:', extractedText.substring(0, 500));
     } catch (pdfError) {
