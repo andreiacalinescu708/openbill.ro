@@ -7,7 +7,7 @@
  */
 
 const TelegramBot = require('node-telegram-bot-api');
-const pdfParseLib = require('pdf-parse');
+const pdfLib = require('pdf-parse');
 const { Pool } = require('pg');
 
 // Configurare - TOKEN trebuie setat în .env
@@ -422,7 +422,7 @@ async function handlePdfUpload(pool, chatId, document, companyId) {
     let extractedText = '';
     try {
       console.log('📄 Începere extracție text din PDF...');
-      const pdfData = await pdfParseLib(pdfBuffer);
+      const pdfData = await pdfLib.PDFParse(pdfBuffer);
       extractedText = pdfData.text || '';
       console.log(`✅ Text extras: ${extractedText.length} caractere`);
       console.log('📝 Primele 500 caractere:', extractedText.substring(0, 500));
