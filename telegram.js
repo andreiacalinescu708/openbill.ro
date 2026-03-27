@@ -755,7 +755,7 @@ async function addToStock(pool, schemaName, product, line) {
     await pool.query(
       `INSERT INTO ${schemaName}.stock (id, gtin, product_name, lot, expires_at, qty, location, warehouse)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [id, gtin, product.name, line.lot, line.expiresAt, line.quantity, 'A', 'depozit']
+      [id, gtin, product.name, line.lot, line.expiresAt, line.quantity, 'R3', 'depozit']
     );
     
     console.log(`✅ Adăugat în stock: ${product.name} | LOT:${line.lot} | QTY:${line.quantity}`);
@@ -842,8 +842,8 @@ function parseManualLines(text) {
     // Pattern complet: Nume LOT:XXXX YYYY-MM-DD QTY
     // Ex: Scutece chilot adulti Seni Active Classic Small pachet a'30 LOT:1402437237 2031-01-31 30
     
-    // Extragem lotul (LOT: urmat de cifre/litere)
-    const lotMatch = line.match(/LOT[:\s]+([A-Z0-9]+)/i);
+    // Extragem lotul (LOT: urmat de cifre/litere, fără spațiu obligatoriu)
+    const lotMatch = line.match(/LOT[:\s]*([A-Z0-9]+)/i);
     const lot = lotMatch ? lotMatch[1] : 'N/A';
     
     // Extragem data (YYYY-MM-DD)
