@@ -403,23 +403,25 @@ async function isTelegramEnabled(pool, companyId) {
 // ============================================
 
 async function extractTextFromPdf(pdfBuffer) {
-  // Încercăm să convertim bufferul într-un string și căutăm text
-  const text = pdfBuffer.toString('utf-8');
+  const fs = require('fs').promises;
+  const path = require('path');
+  const os = require('os');
   
-  // PDF-urile au textul îngropat în binar, dar uneori putem extrage secvențe
-  // Căutăm pattern-uri de text între paranteze sau direct
-  const matches = text.match(/\(([^)]{10,100})\)/g) || [];
+  // Salvăm PDF-ul temporar
+  const tempFile = path.join(os.tmpdir(), `factura_${Date.now()}.pdf`);
+  await fs.writeFile(tempFile, pdfBuffer);
   
-  let extractedText = '';
-  for (const match of matches) {
-    // Eliminăm parantezele și backslash-urile escape
-    const cleanText = match.slice(1, -1).replace(/\\/g, '');
-    if (cleanText.match(/[a-zA-Z]{5,}/)) {
-      extractedText += cleanText + '\n';
-    }
+  try {
+    // Încercăm cu pdf-parse
+    const pdfParse = require('pdf-parse');
+    const dataBuffer = await fs.readFile(tempFile);
+    const data = await pdfParse(dataBuffer);
+    
+    return data.text || '';
+  } finally {
+    // Ștergem fișierul temporar
+    try { await fs.unlink(tempFile); } catch (e) {}
   }
-  
-  return extractedText;
 }
 
 async function handlePdfUpload(pool, chatId, document, companyId) {
