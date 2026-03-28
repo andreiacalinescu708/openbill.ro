@@ -1355,9 +1355,11 @@
     }
     
     function populateFilterDropdowns(sheets) {
-      // Extrage mașini și șoferi unici
-      const vehicles = [...new Set(sheets.map(s => s.vehicle_id))];
-      const drivers = [...new Set(sheets.map(s => s.driver_id))];
+      // Extrage mașini și șoferi unici (folosim Array.from pentru Set)
+      const vehicleSet = new Set(sheets.map(s => s.vehicle_id));
+      const driverSet = new Set(sheets.map(s => s.driver_id));
+      const vehicles = Array.from(vehicleSet);
+      const drivers = Array.from(driverSet);
       
       const vehicleSelect = document.getElementById('filterVehicle');
       const driverSelect = document.getElementById('filterDriver');
