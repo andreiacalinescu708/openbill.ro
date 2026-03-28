@@ -1498,18 +1498,18 @@ async function handleSelectClient(pool, chatId, clientId, session) {
     await bot.sendMessage(chatId,
       `✅ Client selectat: *${client.name}*\n\n` +
       `Acum trimite produsele în format:\n` +
-      \`Cod/Nume Produs Cantitate\` +
+      '`Cod/Nume Produs Cantitate`' +
       `\n*Exemple:*\n` +
-      \`Seni Active Classic 30\` +
-      \`5949031201234 50\` +
-      `\nSau selectează din lista de mai jos:`,
+      '`Seni Active Classic 30`\n' +
+      '`5949031201234 50`\n\n' +
+      `Sau selectează din lista de mai jos:`,
       { parse_mode: 'Markdown' }
     );
     
     // Afișăm lista de produse
     let productList = '📦 *Produse disponibile:*\n\n';
     products.slice(0, 20).forEach((p, i) => {
-      productList += \`${i + 1}. \${p.name.substring(0, 40)}\${p.name.length > 40 ? '...' : ''}\n   GTIN: \${p.gtin || 'N/A'}\n\n\`;
+      productList += `${i + 1}. ${p.name.substring(0, 40)}${p.name.length > 40 ? '...' : ''}\n   GTIN: ${p.gtin || 'N/A'}\n\n`;
     });
     if (products.length > 20) {
       productList += `... și încă ${products.length - 20} produse`;
