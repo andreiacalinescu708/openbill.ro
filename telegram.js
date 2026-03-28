@@ -200,7 +200,12 @@ function setupMessageHandlers(pool) {
   // Handler pentru mesaje text (coduri de activare)
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text?.trim();
+    // Curățăm textul de ghilimele, spații și alte caractere speciale
+    let text = msg.text?.trim();
+    if (text) {
+      // Eliminăm ghilimelele (simple și duble) și backtick-urile
+      text = text.replace(/["'`]/g, '').trim();
+    }
     
     // Ignorăm comenzile (încep cu /)
     if (!text || text.startsWith('/')) return;
