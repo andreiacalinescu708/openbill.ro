@@ -134,7 +134,7 @@ function setupCommandHandlers(pool) {
     bot.emitText(msg);
   });
 
-  // /comanda - Creare comandă nouă pentru client
+  // /comanda - Creare comandă rapidă (copiere din WhatsApp/Email)
   bot.onText(/\/comanda/, async (msg) => {
     const chatId = msg.chat.id;
     
@@ -159,41 +159,32 @@ function setupCommandHandlers(pool) {
       return;
     }
 
-    // Obținem lista de clienți
     const schemaName = await getSchemaName(pool, companyId);
-    const clients = await getClientsForOrder(pool, schemaName);
-    
-    if (clients.length === 0) {
-      await bot.sendMessage(chatId, 
-        '❌ Nu există clienți în sistem.\n\n' +
-        'Adaugă clienți în aplicația web înainte de a crea comenzi.'
-      );
-      return;
-    }
-
-    // Creăm butoane pentru clienți (câte 2 pe rând)
-    const clientButtons = [];
-    for (let i = 0; i < clients.length; i += 2) {
-      const row = [];
-      row.push({ text: clients[i].name, callback_data: `select_client_${clients[i].id}` });
-      if (clients[i + 1]) {
-        row.push({ text: clients[i + 1].name, callback_data: `select_client_${clients[i + 1].id}` });
-      }
-      clientButtons.push(row);
-    }
-    clientButtons.push([{ text: '❌ Anulează', callback_data: 'cancel_order' }]);
 
     await bot.sendMessage(chatId,
-      '🛒 *Comandă Nouă*\n\n' +
-      'Selectează clientul pentru comandă:',
+      '🛒 *Comandă Rapidă*\n\n' +
+      'Trimite comanda *copiată* de la client (WhatsApp/Email).\n\n' +
+      '*Format acceptat:*\n' +
+      '`Produs - Cantitate`\n' +
+      '`Produs Cantitate`\n\n' +
+      '*Exemplu:*\n' +
+      '`SENI CLASIC X 30 BUC MARIME M - 3`\n' +
+      '`Seni clasic x 30 mărime L - 3 al shefa sarari`\n\n' +
+      'Botul va detecta automat:\n' +
+      '• Produsele\n' +
+      '• Cantitățile (numere după produs)\n' +
+      '• Clientul (dacă e menționat la final)',
       { 
         parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: clientButtons }
+        reply_markup: {
+          keyboard: [['❌ Anulează']],
+          resize_keyboard: true
+        }
       }
     );
     
     userSessions.set(chatId, { 
-      step: 'selecting_client', 
+      step: 'waiting_order_text', 
       company_id: companyId,
       schema_name: schemaName
     });
@@ -293,6 +284,22 @@ function setupMessageHandlers(pool) {
     if (session?.step === 'waiting_code' || looksLikeCode) {
       console.log(`🔑 Procesare cod activare: "${text}"`);
       await handleActivationCode(pool, chatId, text, msg.from);
+      return;
+    }
+    
+    // Procesare text comandă rapidă (/comanda)
+    if (session?.step === 'waiting_order_text') {
+      // Verificăm dacă e anulare
+      if (text === '❌ Anulează') {
+        userSessions.delete(chatId);
+        await bot.sendMessage(chatId, '✅ Comandă anulată.', {
+          reply_markup: { remove_keyboard: true }
+        });
+        return;
+      }
+      
+      // Procesăm comanda
+      await processQuickOrder(pool, chatId, text, session);
       return;
     }
     
@@ -402,6 +409,17 @@ function setupCallbackHandlers(pool) {
     } else if (data === 'cancel_order_confirm') {
       userSessions.delete(chatId);
       await bot.sendMessage(chatId, '❌ Comandă anulată.');
+    } else if (data === 'confirm_quick_order') {
+      await handleConfirmQuickOrder(pool, chatId, session);
+    } else if (data === 'select_client_manual') {
+      await showClientSelection(pool, chatId, session);
+    } else if (data.startsWith('select_quick_client_')) {
+      const clientId = data.replace('select_quick_client_', '');
+      const client = session.all_clients?.find(c => c.id === clientId);
+      if (client) {
+        session.detected_client = client;
+        await handleConfirmQuickOrder(pool, chatId, session);
+      }
     }
   });
 }
@@ -1524,6 +1542,283 @@ async function handleAddProduct(pool, chatId, productId, session) {
   
   session.pending_product_id = productId;
   userSessions.set(chatId, session);
+}
+
+// Procesează comanda rapidă copiată de la client
+async function processQuickOrder(pool, chatId, text, session) {
+  const { schema_name, company_id } = session;
+  
+  await bot.sendMessage(chatId, '⏳ Analizez comanda...');
+  
+  // 1. Parsăm textul pentru a extrage produsele și cantitățile
+  const lines = text.split('\n').filter(l => l.trim());
+  
+  // Ultima linie ar putea conține numele clientului
+  let clientNameHint = '';
+  const lastLine = lines[lines.length - 1].toLowerCase();
+  
+  // Căutăm linii care conțin produse și cantități
+  const parsedItems = [];
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+    
+    // Pattern pentru a extrage cantitatea: număr la final sau după minus/dash
+    // Ex: "Seni clasic x 30 - 3" sau "Seni clasic x 30 mărime L - 3" sau "SENI CLASIC X 30 BUC MARIME M -3"
+    const qtyMatch = trimmedLine.match(/[-–—]?\s*(\d+)\s*$/);
+    
+    if (qtyMatch) {
+      const qty = parseInt(qtyMatch[1]);
+      // Eliminăm cantitatea din numele produsului
+      let productName = trimmedLine.substring(0, trimmedLine.lastIndexOf(qtyMatch[0])).trim();
+      // Eliminăm și dash-ul din final dacă există
+      productName = productName.replace(/[-–—]\s*$/, '').trim();
+      
+      if (productName && qty > 0) {
+        parsedItems.push({
+          name: productName,
+          qty: qty,
+          original: trimmedLine
+        });
+      }
+    }
+  }
+  
+  if (parsedItems.length === 0) {
+    await bot.sendMessage(chatId, 
+      '❌ Nu am putut detecta produse în text.\n\n' +
+      'Asigură-te că fiecare linie conține un produs și o cantitate la final.\n' +
+      'Exemplu: `Seni clasic x 30 - 3`',
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+  
+  // 2. Obținem produsele și clienții din DB pentru matching
+  const products = await getProductsForOrder(pool, schema_name);
+  const clients = await getClientsForOrder(pool, schema_name);
+  
+  // 3. Facem matching între produsele detectate și cele din DB
+  const matchedItems = [];
+  const notFoundItems = [];
+  
+  for (const item of parsedItems) {
+    const normalizedItemName = normalizeText(item.name);
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (const product of products) {
+      const normalizedProductName = normalizeText(product.name);
+      const score = calculateSimilarity(normalizedItemName, normalizedProductName);
+      
+      if (score > bestScore && score > 0.4) { // Prag de 40% similaritate
+        bestScore = score;
+        bestMatch = product;
+      }
+    }
+    
+    if (bestMatch) {
+      matchedItems.push({
+        id: bestMatch.id,
+        name: bestMatch.name,
+        gtin: bestMatch.gtin,
+        price: bestMatch.price || 0,
+        qty: item.qty,
+        matched_score: Math.round(bestScore * 100),
+        original_text: item.original
+      });
+    } else {
+      notFoundItems.push(item);
+    }
+  }
+  
+  // 4. Încercăm să detectăm clientul din text
+  let detectedClient = null;
+  const fullText = text.toLowerCase();
+  
+  for (const client of clients) {
+    const clientNameParts = client.name.toLowerCase().split(' ');
+    // Verificăm dacă numele clientului apare în text
+    for (const part of clientNameParts) {
+      if (part.length > 3 && fullText.includes(part)) {
+        detectedClient = client;
+        break;
+      }
+    }
+    if (detectedClient) break;
+  }
+  
+  // 5. Afișăm rezultatul și cerem confirmarea
+  let message = '🛒 *Comandă Detectată*\n\n';
+  
+  if (detectedClient) {
+    message += `👤 Client detectat: *${detectedClient.name}*\n\n`;
+  } else {
+    message += `⚠️ *Client nedetectat* - vei selecta manual\n\n`;
+  }
+  
+  message += `📦 *Produse găsite:* ${matchedItems.length}/${parsedItems.length}\n\n`;
+  
+  matchedItems.forEach((item, i) => {
+    message += `${i + 1}. ✅ *${item.name}*\n`;
+    message += `   📝 Text original: "${item.original_text}"\n`;
+    message += `   📊 Match: ${item.matched_score}% | Cantitate: ${item.qty}\n\n`;
+  });
+  
+  if (notFoundItems.length > 0) {
+    message += `❌ *Produse negăsite:*\n`;
+    notFoundItems.forEach(item => {
+      message += `   • "${item.name}" (qty: ${item.qty})\n`;
+    });
+    message += '\n';
+  }
+  
+  if (matchedItems.length === 0) {
+    await bot.sendMessage(chatId, 
+      message + '\n❌ Nu am putut identifica niciun produs. Verifică textul și încearcă din nou.'
+    );
+    return;
+  }
+  
+  message += 'Ce dorești să faci?';
+  
+  // Salvăm în sesiune
+  session.step = 'confirming_quick_order';
+  session.order_items = matchedItems;
+  session.detected_client = detectedClient;
+  session.all_clients = clients;
+  userSessions.set(chatId, session);
+  
+  const keyboard = [
+    [{ text: '✅ Confirmă și salvează', callback_data: 'confirm_quick_order' }]
+  ];
+  
+  if (!detectedClient) {
+    keyboard.push([{ text: '👤 Selectează client', callback_data: 'select_client_manual' }]);
+  }
+  
+  keyboard.push([{ text: '❌ Anulează', callback_data: 'cancel_order_confirm' }]);
+  
+  await bot.sendMessage(chatId, message, {
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: keyboard }
+  });
+}
+
+// Funcții helper pentru matching text
+function normalizeText(text) {
+  return text
+    .toLowerCase()
+    .replace(/[ăâ]/g, 'a')
+    .replace(/[î]/g, 'i')
+    .replace(/[ș]/g, 's')
+    .replace(/[ț]/g, 't')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function calculateSimilarity(str1, str2) {
+  const s1 = str1.split(' ').filter(w => w.length > 2);
+  const s2 = str2.split(' ').filter(w => w.length > 2);
+  
+  if (s1.length === 0 || s2.length === 0) return 0;
+  
+  let matches = 0;
+  for (const word1 of s1) {
+    for (const word2 of s2) {
+      if (word1 === word2 || word2.includes(word1) || word1.includes(word2)) {
+        matches++;
+      }
+    }
+  }
+  
+  return matches / Math.max(s1.length, s2.length);
+}
+
+// Afișează selecția manuală de clienți
+async function showClientSelection(pool, chatId, session) {
+  const clients = session.all_clients || [];
+  
+  if (clients.length === 0) {
+    await bot.sendMessage(chatId, '❌ Nu există clienți în sistem.');
+    return;
+  }
+  
+  const clientButtons = [];
+  for (let i = 0; i < clients.length; i += 2) {
+    const row = [];
+    row.push({ text: clients[i].name, callback_data: `select_quick_client_${clients[i].id}` });
+    if (clients[i + 1]) {
+      row.push({ text: clients[i + 1].name, callback_data: `select_quick_client_${clients[i + 1].id}` });
+    }
+    clientButtons.push(row);
+  }
+  clientButtons.push([{ text: '❌ Anulează', callback_data: 'cancel_order_confirm' }]);
+  
+  await bot.sendMessage(chatId, '👤 *Selectează clientul:*', {
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: clientButtons }
+  });
+}
+
+// Confirmă comanda rapidă
+async function handleConfirmQuickOrder(pool, chatId, session) {
+  if (!session || session.step !== 'confirming_quick_order') return;
+  
+  let client = session.detected_client;
+  
+  // Dacă nu avem client detectat, trebuie să fie selectat manual
+  if (!client) {
+    await bot.sendMessage(chatId, '⚠️ Trebuie să selectezi mai întâi un client.');
+    await showClientSelection(pool, chatId, session);
+    return;
+  }
+  
+  try {
+    await bot.sendMessage(chatId, '⏳ Salvez comanda...');
+    
+    // Alocăm stocul
+    const allocatedItems = await allocateStockForOrder(
+      pool, 
+      session.schema_name, 
+      session.order_items
+    );
+    
+    // Salvăm comanda
+    const result = await saveOrder(
+      pool,
+      session.schema_name,
+      client.id,
+      { id: client.id, name: client.name },
+      allocatedItems
+    );
+    
+    if (result.success) {
+      let message = `✅ *Comandă Salvată!*\n\n`;
+      message += `📋 Număr: \`${result.orderId}\`\n`;
+      message += `👤 Client: ${client.name}\n`;
+      message += `📦 Produse: ${session.order_items.length}\n\n`;
+      message += `*Produse comandate:*\n`;
+      session.order_items.forEach((item, i) => {
+        message += `${i + 1}. ${item.name} x ${item.qty}\n`;
+      });
+      
+      await bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: { remove_keyboard: true }
+      });
+    } else {
+      await bot.sendMessage(chatId, '❌ Eroare la salvarea comenzii: ' + result.error);
+    }
+    
+    userSessions.delete(chatId);
+    
+  } catch (error) {
+    console.error('Eroare la confirmarea comenzii rapide:', error);
+    await bot.sendMessage(chatId, '❌ Eroare la salvarea comenzii: ' + error.message);
+  }
 }
 
 async function handleFinishOrder(pool, chatId, session) {
