@@ -1115,12 +1115,27 @@ async function saveOrder(pool, schemaName, clientId, clientData, items) {
   }
 }
 
-// Procesează alocarea stocului pentru o comandă
+// Procesează alocarea stocului pentru o comandă (ordine locații: D1, D2, D3, R1, R2, R3, Magazin)
+const LOCATION_ORDER = ["D1", "D2", "D3", "R1", "R2", "R3"];
+
+function locRank(loc) {
+  const i = LOCATION_ORDER.indexOf(String(loc || "").toUpperCase());
+  return i === -1 ? 999 : i;
+}
+
 async function allocateStockForOrder(pool, schemaName, items) {
   const allocatedItems = [];
   
   for (const item of items) {
-    const stockItems = await getStockForProduct(pool, schemaName, item.id);
+    // Obținem stocul și sortăm după locație (D1, D2, D3, R1, R2, R3, apoi restul)
+    let stockItems = await getStockForProduct(pool, schemaName, item.id);
+    stockItems = stockItems.sort((a, b) => {
+      const r = locRank(a.location) - locRank(b.location);
+      if (r !== 0) return r;
+      // Dacă locațiile sunt la fel, sortăm după data expirării
+      return new Date(a.expires_at) - new Date(b.expires_at);
+    });
+    
     let remainingQty = item.qty;
     const allocations = [];
     
