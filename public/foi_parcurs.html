@@ -1376,22 +1376,37 @@
       driverSelect.innerHTML = '<option value="">Toți șoferii</option>';
       
       // Adaugă mașinile din DB (sortate alfabetic)
-      vehicles
-        .sort((a, b) => a.plate_number.localeCompare(b.plate_number))
-        .forEach(v => {
+      // Folosim Map pentru a evita duplicatele
+      const vehicleMap = new Map();
+      vehicles.forEach(v => {
+        if (v.id && v.plate_number) {
+          vehicleMap.set(String(v.id), v.plate_number);
+        }
+      });
+      
+      Array.from(vehicleMap.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, plate]) => {
           const opt = document.createElement('option');
-          opt.value = v.id;
-          opt.textContent = v.plate_number;
+          opt.value = id; // deja e string
+          opt.textContent = plate;
           vehicleSelect.appendChild(opt);
         });
       
       // Adaugă șoferii din DB (sortați alfabetic)
-      drivers
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .forEach(d => {
+      const driverMap = new Map();
+      drivers.forEach(d => {
+        if (d.id && d.name) {
+          driverMap.set(String(d.id), d.name);
+        }
+      });
+      
+      Array.from(driverMap.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, name]) => {
           const opt = document.createElement('option');
-          opt.value = d.id;
-          opt.textContent = d.name;
+          opt.value = id; // deja e string
+          opt.textContent = name;
           driverSelect.appendChild(opt);
         });
       
@@ -1406,13 +1421,23 @@
       const dateFrom = document.getElementById('filterDateFrom').value;
       const dateTo = document.getElementById('filterDateTo').value;
       
+      // DEBUG: Log filter values
+      console.log('Filter values:', { vehicleFilter, driverFilter, dateFrom, dateTo });
+      console.log('Sample sheet:', allTripSheets[0]);
+      
       // Filtrează foile
       let filtered = allTripSheets.filter(sheet => {
         // Filtru mașină (compară ca string)
-        if (vehicleFilter && String(sheet.vehicle_id) !== vehicleFilter) return false;
+        if (vehicleFilter && String(sheet.vehicle_id) !== vehicleFilter) {
+          console.log(`Filtering out sheet ${sheet.id}: vehicle_id ${sheet.vehicle_id} !== ${vehicleFilter}`);
+          return false;
+        }
         
         // Filtru șofer (compară ca string)
-        if (driverFilter && String(sheet.driver_id) !== driverFilter) return false;
+        if (driverFilter && String(sheet.driver_id) !== driverFilter) {
+          console.log(`Filtering out sheet ${sheet.id}: driver_id ${sheet.driver_id} !== ${driverFilter}`);
+          return false;
+        }
         
         // Filtru dată "de la"
         if (dateFrom && new Date(sheet.date) < new Date(dateFrom)) return false;
