@@ -200,8 +200,10 @@ function setupMessageHandlers(pool) {
   // Handler pentru mesaje text (coduri de activare)
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
+    const originalText = msg.text?.trim();
+    
     // Curățăm textul de ghilimele, spații și alte caractere speciale
-    let text = msg.text?.trim();
+    let text = originalText;
     if (text) {
       // Eliminăm ghilimelele (simple și duble) și backtick-urile
       text = text.replace(/["'`]/g, '').trim();
@@ -210,7 +212,9 @@ function setupMessageHandlers(pool) {
     // Ignorăm comenzile (încep cu /)
     if (!text || text.startsWith('/')) return;
     
-    console.log(`📨 Mesaj primit de la ${chatId}: "${text}"`);
+    console.log(`📨 Mesaj primit de la ${chatId}:`);
+    console.log(`   Original: "${originalText}"`);
+    console.log(`   Curățat:  "${text}"`);
     
     const session = userSessions.get(chatId);
     
