@@ -491,6 +491,20 @@
 
       const groups = groupByProduct(stockToRender);
       
+      // Sortează: produse cu stoc mic (< 30) primele, apoi celelalte
+      groups.sort((a, b) => {
+        const aLow = a.totalQty < 30;
+        const bLow = b.totalQty < 30;
+        
+        // Ambele au stoc mic sau ambele au stoc normal → sortează după cantitate
+        if (aLow === bLow) {
+          return a.totalQty - b.totalQty;
+        }
+        
+        // Stoc mic primește prioritate
+        return aLow ? -1 : 1;
+      });
+      
       groups.forEach((group, idx) => {
         const isLow = group.totalQty < 30;
         
