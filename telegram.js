@@ -205,8 +205,10 @@ function setupMessageHandlers(pool) {
     // Curățăm textul de ghilimele, spații și alte caractere speciale
     let text = originalText;
     if (text) {
-      // Eliminăm ghilimelele (simple și duble) și backtick-urile
-      text = text.replace(/["'`]/g, '').trim();
+      // Eliminăm TOATE tipurile de ghilimele (duble, simple, backtick, smart quotes)
+      text = text.replace(/["'""''`]/g, '').trim();
+      // Eliminăm și eventualele caractere invizibile la început/sfârșit
+      text = text.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '');
     }
     
     // Ignorăm comenzile (încep cu /)
@@ -331,6 +333,15 @@ function setupCallbackHandlers(pool) {
 async function handleActivationCode(pool, chatId, code, userInfo) {
   try {
     console.log(`🔍 Căutare companie pentru cod: "${code}" (uppercase: "${code.toUpperCase()}")`);
+    
+    // Debug: Afișăm toate codurile din DB
+    const allCodes = await pool.query(
+      "SELECT id, name, telegram_code, status FROM public.companies WHERE telegram_code IS NOT NULL AND telegram_code != ''"
+    );
+    console.log(`📋 Coduri Telegram în DB: ${allCodes.rows.length}`);
+    allCodes.rows.forEach(r => {
+      console.log(`   - ${r.name}: "${r.telegram_code}" (status: ${r.status})`);
+    });
     
     // Căutăm compania după cod
     const result = await pool.query(
