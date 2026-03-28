@@ -1338,38 +1338,32 @@
 
     async function loadTripSheets() {
       try {
-        const res = await fetch('/api/trip-sheets');
-        const sheets = await res.json();
+        // Încarcă foi de parcurs, șoferi și mașini în paralel
+        const [sheetsRes, driversRes, vehiclesRes] = await Promise.all([
+          fetch('/api/trip-sheets'),
+          fetch('/api/drivers'),
+          fetch('/api/vehicles')
+        ]);
+        
+        const sheets = await sheetsRes.json();
+        const drivers = await driversRes.json();
+        const vehicles = await vehiclesRes.json();
         
         // Stochează toate foile pentru filtrare
         allTripSheets = sheets.sort((a, b) => new Date(b.date) - new Date(a.date));
         
-        // Populează dropdown-urile de filtre cu valori unice
-        populateFilterDropdowns(sheets);
+        // Populează dropdown-urile de filtre din DB
+        populateFilterDropdownsFromDB(drivers, vehicles);
         
         // Aplică filtrele curente și afișează
         applyFilters();
       } catch (e) {
+        console.error('Eroare la încărcare:', e);
         document.getElementById('tripSheetsList').innerHTML = '<p class="hint">Eroare la încărcare</p>';
       }
     }
     
-    function populateFilterDropdowns(sheets) {
-      // Folosim Map pentru a stoca ID -> nume unic
-      const vehicleMap = new Map();
-      const driverMap = new Map();
-      
-      sheets.forEach(sheet => {
-        // Adaugă mașina dacă are ID valid
-        if (sheet.vehicle_id && sheet.plate_number) {
-          vehicleMap.set(String(sheet.vehicle_id), sheet.plate_number);
-        }
-        // Adaugă șoferul dacă are ID valid
-        if (sheet.driver_id && sheet.driver_name) {
-          driverMap.set(String(sheet.driver_id), sheet.driver_name);
-        }
-      });
-      
+    function populateFilterDropdownsFromDB(drivers, vehicles) {
       const vehicleSelect = document.getElementById('filterVehicle');
       const driverSelect = document.getElementById('filterDriver');
       
@@ -1381,33 +1375,29 @@
       vehicleSelect.innerHTML = '<option value="">Toate mașinile</option>';
       driverSelect.innerHTML = '<option value="">Toți șoferii</option>';
       
-      // Adaugă mașinile (sortate alfabetic)
-      Array.from(vehicleMap.entries())
-        .sort((a, b) => a[1].localeCompare(b[1]))
-        .forEach(([id, plate]) => {
+      // Adaugă mașinile din DB (sortate alfabetic)
+      vehicles
+        .sort((a, b) => a.plate_number.localeCompare(b.plate_number))
+        .forEach(v => {
           const opt = document.createElement('option');
-          opt.value = id;
-          opt.textContent = plate;
+          opt.value = v.id;
+          opt.textContent = v.plate_number;
           vehicleSelect.appendChild(opt);
         });
       
-      // Adaugă șoferii (sortați alfabetic)
-      Array.from(driverMap.entries())
-        .sort((a, b) => a[1].localeCompare(b[1]))
-        .forEach(([id, name]) => {
+      // Adaugă șoferii din DB (sortați alfabetic)
+      drivers
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(d => {
           const opt = document.createElement('option');
-          opt.value = id;
-          opt.textContent = name;
+          opt.value = d.id;
+          opt.textContent = d.name;
           driverSelect.appendChild(opt);
         });
       
       // Restaurează selecția anterioară dacă există
-      if (currentVehicle && vehicleMap.has(currentVehicle)) {
-        vehicleSelect.value = currentVehicle;
-      }
-      if (currentDriver && driverMap.has(currentDriver)) {
-        driverSelect.value = currentDriver;
-      }
+      if (currentVehicle) vehicleSelect.value = currentVehicle;
+      if (currentDriver) driverSelect.value = currentDriver;
     }
     
     function applyFilters() {
