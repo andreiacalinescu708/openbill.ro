@@ -815,7 +815,41 @@
 
     <!-- Lista Foi de Parcurs -->
     <div class="trip-card history-section no-print">
-      <h2 style="margin-bottom: var(--space-4);">📋 Istoric Foi de Parcurs (Cele mai noi primele)</h2>
+      <h2 style="margin-bottom: var(--space-4);">📋 Istoric Foi de Parcurs</h2>
+      
+      <!-- Filtre -->
+      <div class="trip-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: var(--space-4); padding: var(--space-4); background: var(--bg-elevated); border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+        <div class="form-group">
+          <label>🚗 Filtru Mașină</label>
+          <select id="filterVehicle" onchange="applyFilters()">
+            <option value="">Toate mașinile</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>👤 Filtru Șofer</label>
+          <select id="filterDriver" onchange="applyFilters()">
+            <option value="">Toți șoferii</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>📅 De la data</label>
+          <input type="date" id="filterDateFrom" onchange="applyFilters()">
+        </div>
+        
+        <div class="form-group">
+          <label>📅 Până la data</label>
+          <input type="date" id="filterDateTo" onchange="applyFilters()">
+        </div>
+        
+        <div class="form-group" style="display: flex; align-items: flex-end;">
+          <button class="btn btn-ghost" onclick="resetFilters()" style="width: 100%;">🔄 Resetează filtre</button>
+        </div>
+      </div>
+      
+      <div id="filterStats" style="margin-bottom: var(--space-3); font-size: 0.875rem; color: var(--text-muted);"></div>
+      
       <div id="tripSheetsList" class="trip-sheet-list">
         <p class="hint">Se încarcă...</p>
       </div>
@@ -911,6 +945,7 @@
     let currentTripData = null;
     let lastKmForVehicle = 0;
     let kmStartLocked = true;
+    let allTripSheets = []; // Stochează toate foile pentru filtrare
 
     document.addEventListener('DOMContentLoaded', async () => {
       await renderUserBar();
@@ -1305,17 +1340,112 @@
       try {
         const res = await fetch('/api/trip-sheets');
         const sheets = await res.json();
-        const container = document.getElementById('tripSheetsList');
         
-        sheets.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Stochează toate foile pentru filtrare
+        allTripSheets = sheets.sort((a, b) => new Date(b.date) - new Date(a.date));
         
-        if (sheets.length === 0) {
-          container.innerHTML = '<p class="hint">Nu există foi de parcurs încă.</p>';
-          return;
+        // Populează dropdown-urile de filtre cu valori unice
+        populateFilterDropdowns(sheets);
+        
+        // Aplică filtrele curente și afișează
+        applyFilters();
+      } catch (e) {
+        document.getElementById('tripSheetsList').innerHTML = '<p class="hint">Eroare la încărcare</p>';
+      }
+    }
+    
+    function populateFilterDropdowns(sheets) {
+      // Extrage mașini și șoferi unici
+      const vehicles = [...new Set(sheets.map(s => s.vehicle_id))];
+      const drivers = [...new Set(sheets.map(s => s.driver_id))];
+      
+      const vehicleSelect = document.getElementById('filterVehicle');
+      const driverSelect = document.getElementById('filterDriver');
+      
+      // Păstrează opțiunea "Toate"
+      vehicleSelect.innerHTML = '<option value="">Toate mașinile</option>';
+      driverSelect.innerHTML = '<option value="">Toți șoferii</option>';
+      
+      // Adaugă mașinile
+      vehicles.forEach(vehicleId => {
+        const sheet = sheets.find(s => s.vehicle_id === vehicleId);
+        if (sheet) {
+          const opt = document.createElement('option');
+          opt.value = vehicleId;
+          opt.textContent = sheet.plate_number;
+          vehicleSelect.appendChild(opt);
+        }
+      });
+      
+      // Adaugă șoferii
+      drivers.forEach(driverId => {
+        const sheet = sheets.find(s => s.driver_id === driverId);
+        if (sheet) {
+          const opt = document.createElement('option');
+          opt.value = driverId;
+          opt.textContent = sheet.driver_name;
+          driverSelect.appendChild(opt);
+        }
+      });
+    }
+    
+    function applyFilters() {
+      const vehicleFilter = document.getElementById('filterVehicle').value;
+      const driverFilter = document.getElementById('filterDriver').value;
+      const dateFrom = document.getElementById('filterDateFrom').value;
+      const dateTo = document.getElementById('filterDateTo').value;
+      
+      // Filtrează foile
+      let filtered = allTripSheets.filter(sheet => {
+        // Filtru mașină
+        if (vehicleFilter && sheet.vehicle_id !== vehicleFilter) return false;
+        
+        // Filtru șofer
+        if (driverFilter && sheet.driver_id !== driverFilter) return false;
+        
+        // Filtru dată "de la"
+        if (dateFrom && new Date(sheet.date) < new Date(dateFrom)) return false;
+        
+        // Filtru dată "până la" (inclusiv)
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (new Date(sheet.date) > toDate) return false;
         }
         
-        container.innerHTML = '';
-        sheets.forEach(sheet => {
+        return true;
+      });
+      
+      // Actualizează statistici
+      const statsDiv = document.getElementById('filterStats');
+      if (filtered.length !== allTripSheets.length) {
+        statsDiv.innerHTML = `📊 Se afișează <strong>${filtered.length}</strong> din <strong>${allTripSheets.length}</strong> foi de parcurs`;
+      } else {
+        statsDiv.innerHTML = `📊 Total: <strong>${allTripSheets.length}</strong> foi de parcurs`;
+      }
+      
+      // Afișează foile filtrate
+      renderTripSheets(filtered);
+    }
+    
+    function resetFilters() {
+      document.getElementById('filterVehicle').value = '';
+      document.getElementById('filterDriver').value = '';
+      document.getElementById('filterDateFrom').value = '';
+      document.getElementById('filterDateTo').value = '';
+      applyFilters();
+    }
+    
+    function renderTripSheets(sheets) {
+      const container = document.getElementById('tripSheetsList');
+      
+      if (sheets.length === 0) {
+        container.innerHTML = '<p class="hint">Nu există foi de parcurs care să corespundă filtrelor.</p>';
+        return;
+      }
+      
+      container.innerHTML = '';
+      sheets.forEach(sheet => {
           const kmTotal = sheet.km_end ? (sheet.km_end - sheet.km_start) : '-';
           const isComplete = sheet.km_end ? true : false;
           
@@ -1372,9 +1502,6 @@
           `;
           container.appendChild(div);
         });
-      } catch (e) {
-        document.getElementById('tripSheetsList').innerHTML = '<p class="hint">Eroare la încărcare</p>';
-      }
     }
 
     function formatDate(dateStr) {
