@@ -419,7 +419,8 @@ const smartbillPayload = {
   
   for (const item of order.items || []) {
     if (item.type === 'discount') {
-      // Linie discount SmartBill
+      // Linie discount SmartBill - conform documentației
+      // Discountul NU trebuie să aibă warehouseName
       smartbillProducts.push({
         name: item.name || `Discount ${item.percent}%`,
         code: '',
@@ -431,7 +432,6 @@ const smartbillPayload = {
         taxName: 'Normala',
         taxPercentage: 21,
         isDiscount: true,
-        warehouseName: "DISTRIBUTIE",
         isService: false,
         saveToDb: false,
         productDescription: ''

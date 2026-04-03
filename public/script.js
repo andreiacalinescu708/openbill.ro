@@ -3346,8 +3346,17 @@ function selectProductByGTIN(gtin) {
         row.append(left, right);
         list.appendChild(row);
         
-        // Adaugă butoane rapide discount după fiecare produs (nu după discounturi)
-        if (it.type !== 'discount') {
+        // Adaugă butoane rapide discount după fiecare produs
+        // NU adăugăm butoane dacă elementul curent e discount (previne discount după discount)
+        if (it.type === 'discount') {
+          // După discount, nu adăugăm nimic (următorul produs va avea butoanele sale)
+        } else {
+          // Verificăm dacă elementul următor e discount - dacă da, nu afișăm butoane
+          // (pentru a evita situația: produs -> discount -> butoane discount)
+          const nextItem = editItems[idx + 1];
+          const shouldShowButtons = !nextItem || nextItem.type !== 'discount';
+          
+          if (shouldShowButtons) {
           const discountRow = document.createElement("div");
           discountRow.style.cssText = `
             display: flex;
@@ -3412,7 +3421,8 @@ function selectProductByGTIN(gtin) {
           discountRow.appendChild(btnCustom);
           
           list.appendChild(discountRow);
-        }
+          } // end shouldShowButtons
+        } // end if type !== 'discount'
       });
 
       // Adaugă butonul "+ Discount" la finalul listei (pentru discount la final)
