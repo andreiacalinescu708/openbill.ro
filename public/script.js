@@ -3445,36 +3445,29 @@ function selectProductByGTIN(gtin) {
 
     // Funcție pentru afișare modal discount
     // afterIndex = indexul produsului după care se adaugă discountul
+    // Discountul se aplică tuturor produselor de după ULTIMUL discount până la afterIndex
     function showDiscountModal(afterIndex = null) {
       // Dacă nu e specificat un index, punem la final
       if (afterIndex === null) {
         afterIndex = editItems.length - 1;
       }
       
-      // Găsim următorul discount după poziția specificată
-      let nextDiscountIndex = editItems.length;
-      for (let i = afterIndex + 1; i < editItems.length; i++) {
+      // Găsim ULTIMUL discount ÎNAINTE de poziția specificată (sau -1 dacă nu există)
+      let lastDiscountIndex = -1;
+      for (let i = afterIndex; i >= 0; i--) {
         if (editItems[i].type === 'discount') {
-          nextDiscountIndex = i;
+          lastDiscountIndex = i;
           break;
         }
       }
       
-      // Calculăm suma produselor între afterIndex și nextDiscountIndex
+      // Calculăm suma produselor între ultimul discount și poziția curentă
+      // (de la lastDiscountIndex+1 până la afterIndex, inclusiv)
       let baseAmount = 0;
-      for (let i = afterIndex + 1; i < nextDiscountIndex; i++) {
+      for (let i = lastDiscountIndex + 1; i <= afterIndex; i++) {
         const it = editItems[i];
-        if (it.type !== 'discount') {
+        if (it && it.type !== 'discount') {
           baseAmount += Number(it.price || 0) * Number(it.qty || 1);
-        }
-      }
-      
-      // Dacă nu avem produse după poziția respectivă, verificăm dacă avem produse înainte
-      if (baseAmount <= 0) {
-        // Verificăm dacă produsul de la afterIndex există și e produs (nu discount)
-        const targetItem = editItems[afterIndex];
-        if (targetItem && targetItem.type !== 'discount') {
-          baseAmount = Number(targetItem.price || 0) * Number(targetItem.qty || 1);
         }
       }
       
