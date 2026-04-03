@@ -2300,6 +2300,7 @@ app.post("/api/orders", async (req, res) => {
       let allocations = [];
       try {
         if (db.hasDb()) {
+          console.log(`[Order] Alocare stoc pentru: ${item.name}, GTIN: ${item.gtin}, Qty: ${qty}, Schema: ${schemaName}`);
           allocations = await allocateStockFromDB(item.gtin, qty, 'depozit', req);
         } else {
           const stock = readJson(STOCK_FILE, []);
@@ -2307,6 +2308,7 @@ app.post("/api/orders", async (req, res) => {
           writeJson(STOCK_FILE, stock);
         }
       } catch (e) {
+        console.error(`[Order] Eroare alocare stoc pentru ${item.name}:`, e.message);
         return res.status(400).json({ 
           error: `Stoc insuficient pentru ${item.name}. ${e.message}` 
         });
@@ -2662,18 +2664,43 @@ async function allocateStockFromDB(gtin, neededQty, preferredWarehouse = 'depozi
   
   // Obținem schemaName din context (trebuie pasată de endpoint)
   const schemaName = (req && req.session?.user?.schema_name) || 'public';
+  
+  console.log(`[Stock] Alocare stoc: GTIN=${gtin}, normalizat=${g}, schema=${schemaName}, needed=${neededQty}`);
 
-  // 1. Găsim produsul după GTIN
-  const productRes = await db.q(
+  // 1. Găsim produsul după GTIN (căutare mai flexibilă)
+  let productRes = await db.q(
     `SELECT id, gtin, gtins FROM ${schemaName}.products 
      WHERE gtin = $1 OR gtins::jsonb @> to_jsonb($1) 
      LIMIT 1`,
     [g]
   );
   
+  // Dacă nu găsim cu GTIN normalizat, încercăm și cu varianta originală
+  if (!productRes.rows.length && gtin !== g) {
+    productRes = await db.q(
+      `SELECT id, gtin, gtins FROM ${schemaName}.products 
+       WHERE gtin = $1 OR gtins::jsonb @> to_jsonb($1) 
+       LIMIT 1`,
+      [gtin]
+    );
+  }
+  
+  // Dacă tot nu găsim, încercăm cu LIKE pentru căutare parțială
   if (!productRes.rows.length) {
+    productRes = await db.q(
+      `SELECT id, gtin, gtins FROM ${schemaName}.products 
+       WHERE gtin LIKE $1 OR gtins::text LIKE $1
+       LIMIT 1`,
+      [`%${g}%`]
+    );
+  }
+  
+  if (!productRes.rows.length) {
+    console.error(`[Stock] Produs cu GTIN ${gtin} (normalizat: ${g}) nu există în catalogul ${schemaName}`);
     throw new Error(`Produs cu GTIN ${gtin} nu există în catalog`);
   }
+  
+  console.log(`[Stock] Produs găsit: id=${productRes.rows[0].id}, gtin=${productRes.rows[0].gtin}`)
   
   const product = productRes.rows[0];
   
