@@ -3346,26 +3346,72 @@ function selectProductByGTIN(gtin) {
         row.append(left, right);
         list.appendChild(row);
         
-        // Adaugă buton "+ Discount" după fiecare produs (nu după discounturi)
+        // Adaugă butoane rapide discount după fiecare produs (nu după discounturi)
         if (it.type !== 'discount') {
-          const btnAddHere = document.createElement("button");
-          btnAddHere.className = "btn";
-          btnAddHere.innerHTML = "🏷️ + Discount";
-          btnAddHere.style.cssText = `
+          const discountRow = document.createElement("div");
+          discountRow.style.cssText = `
+            display: flex;
+            gap: 8px;
+            margin: 4px 0 12px 0;
+            flex-wrap: wrap;
+            align-items: center;
+          `;
+          
+          const label = document.createElement("span");
+          label.textContent = "🏷️";
+          label.style.fontSize = "0.75rem";
+          discountRow.appendChild(label);
+          
+          // Butoane rapide pentru procente comune
+          const quickPercents = [10, 12, 15, 20];
+          quickPercents.forEach(pct => {
+            const btn = document.createElement("button");
+            btn.className = "btn";
+            btn.textContent = `${pct}%`;
+            btn.style.cssText = `
+              background: rgba(245, 158, 11, 0.15);
+              border: 1px solid rgba(245, 158, 11, 0.3);
+              color: #f59e0b;
+              font-size: 0.7rem;
+              padding: 2px 8px;
+              min-width: 36px;
+              cursor: pointer;
+              border-radius: 4px;
+              transition: all 0.2s;
+            `;
+            btn.onmouseover = () => {
+              btn.style.background = 'rgba(245, 158, 11, 0.3)';
+              btn.style.transform = 'scale(1.05)';
+            };
+            btn.onmouseout = () => {
+              btn.style.background = 'rgba(245, 158, 11, 0.15)';
+              btn.style.transform = 'scale(1)';
+            };
+            btn.onclick = () => applyQuickDiscount(idx, pct);
+            discountRow.appendChild(btn);
+          });
+          
+          // Buton custom (+)
+          const btnCustom = document.createElement("button");
+          btnCustom.className = "btn";
+          btnCustom.textContent = "+";
+          btnCustom.title = "Discount custom";
+          btnCustom.style.cssText = `
             background: transparent;
             border: 1px dashed rgba(245, 158, 11, 0.4);
             color: #f59e0b;
-            font-size: 0.75rem;
-            padding: 4px 12px;
-            margin: 4px 0 12px 0;
+            font-size: 0.7rem;
+            padding: 2px 10px;
             cursor: pointer;
-            opacity: 0.7;
+            border-radius: 4px;
             transition: all 0.2s;
           `;
-          btnAddHere.onmouseover = () => btnAddHere.style.opacity = '1';
-          btnAddHere.onmouseout = () => btnAddHere.style.opacity = '0.7';
-          btnAddHere.onclick = () => showDiscountModal(idx);
-          list.appendChild(btnAddHere);
+          btnCustom.onmouseover = () => btnCustom.style.background = 'rgba(245, 158, 11, 0.1)';
+          btnCustom.onmouseout = () => btnCustom.style.background = 'transparent';
+          btnCustom.onclick = () => showDiscountModal(idx);
+          discountRow.appendChild(btnCustom);
+          
+          list.appendChild(discountRow);
         }
       });
 
@@ -3442,6 +3488,53 @@ function selectProductByGTIN(gtin) {
     }
 
     search.addEventListener("input", () => renderProductResults(search.value));
+
+    // Funcție pentru aplicare rapidă discount (fără prompt)
+    function applyQuickDiscount(afterIndex, percent) {
+      if (afterIndex === null) {
+        afterIndex = editItems.length - 1;
+      }
+      
+      // Găsim ULTIMUL discount ÎNAINTE de poziția specificată
+      let lastDiscountIndex = -1;
+      for (let i = afterIndex; i >= 0; i--) {
+        if (editItems[i].type === 'discount') {
+          lastDiscountIndex = i;
+          break;
+        }
+      }
+      
+      // Calculăm suma produselor între ultimul discount și poziția curentă
+      let baseAmount = 0;
+      for (let i = lastDiscountIndex + 1; i <= afterIndex; i++) {
+        const it = editItems[i];
+        if (it && it.type !== 'discount') {
+          baseAmount += Number(it.price || 0) * Number(it.qty || 1);
+        }
+      }
+      
+      if (baseAmount <= 0) {
+        alert("Nu există produse pentru a aplica discount.");
+        return;
+      }
+      
+      const discountAmount = -(baseAmount * percent / 100);
+      
+      // Inserăm discountul la poziția corectă (după afterIndex)
+      const insertIndex = afterIndex + 1;
+      editItems.splice(insertIndex, 0, {
+        id: `discount_${Date.now()}`,
+        type: 'discount',
+        name: `Discount ${percent}%`,
+        percent: percent,
+        amount: Math.round(discountAmount * 100) / 100,
+        baseAmount: Math.round(baseAmount * 100) / 100,
+        qty: 1,
+        price: Math.round(discountAmount * 100) / 100
+      });
+      
+      renderItems();
+    }
 
     // Funcție pentru afișare modal discount
     // afterIndex = indexul produsului după care se adaugă discountul
