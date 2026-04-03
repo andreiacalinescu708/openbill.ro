@@ -393,9 +393,9 @@ async function sendDraftToSmartBill(order, clientCui, req) {
     console.log('Eroare la citire payment_terms:', e.message);
   }
 
-  // Validare: toate produsele trebuie să aibă GTIN
+  // Validare: toate produsele trebuie să aibă GTIN (doar pentru items de tip product)
   for (const item of order.items || []) {
-    if (!item.gtin) {
+    if (item.type !== 'discount' && !item.gtin) {
       throw new Error(`Produsul "${item.name}" nu are GTIN configurat`);
     }
   }
@@ -414,41 +414,68 @@ const smartbillPayload = {
   // ...
 };
 
+  // Mapare produse și discounturi pentru SmartBill
+  const smartbillProducts = [];
+  
+  for (const item of order.items || []) {
+    if (item.type === 'discount') {
+      // Linie discount SmartBill
+      smartbillProducts.push({
+        name: item.name || `Discount ${item.percent}%`,
+        code: '',
+        measuringUnitName: "BUC",
+        currency: 'RON',
+        quantity: 1,
+        price: Number(item.amount || 0),  // Valoare negativă
+        isTaxIncluded: false,
+        taxName: 'Normala',
+        taxPercentage: 21,
+        isDiscount: true,
+        warehouseName: "DISTRIBUTIE",
+        isService: false,
+        saveToDb: false,
+        productDescription: ''
+      });
+    } else {
+      // Produs normal
+      smartbillProducts.push({
+        name: item.name,
+        code: item.gtin,
+        measuringUnitName: "BUC",
+        currency: 'RON',
+        quantity: Number(item.qty || 0),
+        price: Number(item.unitPrice || item.price || 0),
+        isTaxIncluded: false,
+        taxName: 'Normala',
+        taxPercentage: 21,
+        isDiscount: false,
+        warehouseName: "DISTRIBUTIE",
+        isService: false,
+        saveToDb: false,
+        productDescription: (item.allocations || []).map(alloc => {
+          const lot = alloc.lot || '-';
+          const exp = alloc.expiresAt ? new Date(alloc.expiresAt).toLocaleDateString('ro-RO') : '-';
+          return `LOT: ${lot} | EXP: ${exp}`;
+        }).join('\n')
+      });
+    }
+  }
+
   const payload = {
-    companyVatCode: company.cui,           // RO47095864 - Fast Medical Distribution
+    companyVatCode: company.cui,
     client: {
       name: order.client?.name || 'Client',
-      vatCode: clientCui || '',            // RO9285726 - Al Shefa (din DB)
+      vatCode: clientCui || '',
       isTaxPayer: true,
       country: 'Romania'
     },
-    isDraft: true,                          // CIORNĂ
-    seriesName: company.smartbill_series,   // FMD
+    isDraft: true,
+    seriesName: company.smartbill_series,
     issueDate: new Date().toISOString().split('T')[0],
     useStock: true,
-    
-    // MENȚIUNI - apare pe factura PDF în SmartBill
-mentions: `Punct de lucru: ${order.client?.name || 'Client'}`,    
-    products: (order.items || []).map(item => ({
-      name: item.name,
-      code: item.gtin,                      // GTIN pentru identificare în SmartBill
-      measuringUnitName: "BUC",
-      currency: 'RON',
-      quantity: Number(item.qty || 0),
-      price: Number(item.unitPrice || item.price || 0),  // Preț unitar
-      isTaxIncluded: false,                  // Prețul include TVA
-      taxName: 'Normala',
-      taxPercentage: 21,                    // TVA 21%
-      isDiscount: false,
-      warehouseName: "DISTRIBUTIE",
-      isService: false,
-      saveToDb: false,                      // Nu salvăm produsul în catalogul SmartBill
-      productDescription: (item.allocations || []).map(alloc => {
-        const lot = alloc.lot || '-';
-        const exp = alloc.expiresAt ? new Date(alloc.expiresAt).toLocaleDateString('ro-RO') : '-';
-        return `LOT: ${lot} | EXP: ${exp}`;
-      }).join('\n')
-    }))
+    dueDate: dueDateFormatted,
+    mentions: `Punct de lucru: ${order.client?.name || 'Client'}`,
+    products: smartbillProducts
   };
 
   console.log('=== SMARTBILL PAYLOAD ===');
@@ -2569,7 +2596,7 @@ app.put("/api/orders/:id", async (req, res) => {
       }
     }
 
-    // 3) Alocă stoc nou
+    // 3) Alocă stoc nou (doar pentru produse, nu pentru discounturi)
     const newItems = [];
     
     for (const it of items) {
@@ -2577,6 +2604,25 @@ app.put("/api/orders/:id", async (req, res) => {
       if (qty <= 0) continue;
 
       const unitPrice = Number(it.price || 0);
+      
+      // Dacă e discount, nu alocăm stoc
+      if (it.type === 'discount') {
+        newItems.push({
+          id: it.id,
+          type: 'discount',
+          name: it.name,
+          percent: it.percent,
+          amount: it.amount,
+          baseAmount: it.baseAmount,
+          qty: 1,
+          unitPrice: unitPrice,
+          lineTotal: unitPrice,
+          allocations: []
+        });
+        continue;
+      }
+      
+      // Pentru produse normale, alocăm stoc
       const allocations = await allocateStockFromDB(it.gtin, qty, 'depozit', req);
       
       newItems.push({
@@ -2938,6 +2984,173 @@ app.post("/api/orders/:id/return-stock", async (req, res) => {
   } catch (e) {
     console.error("POST /api/orders/:id/return-stock error:", e);
     res.status(500).json({ error: e.message || "Eroare la returnarea stocului" });
+  }
+});
+
+// =============================================================================
+// ENDPOINT: Aplicare discount pe comandă (stack-based)
+// Adaugă o linie de discount care se aplică produselor de deasupra ei
+// =============================================================================
+app.post("/api/orders/:id/apply-discount", async (req, res) => {
+  try {
+    const schemaName = req.session?.user?.schema_name || 'public';
+    const orderId = String(req.params.id);
+    const { percent } = req.body;
+    
+    // Validare procent (1-20%)
+    const discountPercent = Number(percent);
+    if (!Number.isFinite(discountPercent) || discountPercent < 1 || discountPercent > 20) {
+      return res.status(400).json({ error: "Discount invalid. Trebuie să fie între 1% și 20%." });
+    }
+    
+    if (!db.hasDb()) {
+      return res.status(500).json({ error: "DB neconfigurat" });
+    }
+    
+    // Ia comanda din DB
+    const orderRes = await db.q(
+      `SELECT items, sent_to_smartbill FROM ${schemaName}.orders WHERE id = $1`,
+      [orderId]
+    );
+    
+    if (!orderRes.rows.length) {
+      return res.status(404).json({ error: "Comandă inexistentă" });
+    }
+    
+    if (orderRes.rows[0].sent_to_smartbill) {
+      return res.status(403).json({ error: "Comanda a fost deja trimisă la SmartBill." });
+    }
+    
+    const items = orderRes.rows[0].items || [];
+    
+    // Găsește ultimul discount din listă (dacă există)
+    let lastDiscountIndex = -1;
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].type === 'discount') {
+        lastDiscountIndex = i;
+        break;
+      }
+    }
+    
+    // Calculează suma produselor de deasupra (de la ultimul discount până la final)
+    let baseAmount = 0;
+    const startIndex = lastDiscountIndex + 1;
+    
+    for (let i = startIndex; i < items.length; i++) {
+      const item = items[i];
+      if (item.type !== 'discount') {
+        const itemTotal = Number(item.qty || 0) * Number(item.unitPrice || item.price || 0);
+        baseAmount += itemTotal;
+      }
+    }
+    
+    if (baseAmount <= 0) {
+      return res.status(400).json({ error: "Nu există produse pentru a aplica discount." });
+    }
+    
+    // Calculează valoarea discountului
+    const discountAmount = -(baseAmount * discountPercent / 100);
+    
+    // Adaugă linia discount
+    const discountItem = {
+      id: `discount_${Date.now()}`,
+      type: 'discount',
+      name: `Discount ${discountPercent}%`,
+      percent: discountPercent,
+      amount: Math.round(discountAmount * 100) / 100, // 2 zecimale
+      baseAmount: Math.round(baseAmount * 100) / 100,
+      qty: 1,
+      unitPrice: Math.round(discountAmount * 100) / 100
+    };
+    
+    items.push(discountItem);
+    
+    // Salvează în DB
+    await db.q(
+      `UPDATE ${schemaName}.orders SET items = $1::jsonb WHERE id = $2`,
+      [JSON.stringify(items), orderId]
+    );
+    
+    await logAudit(req, "ORDER_DISCOUNT_APPLIED", "order", orderId, {
+      percent: discountPercent,
+      amount: discountAmount,
+      baseAmount: baseAmount
+    });
+    
+    res.json({ 
+      ok: true, 
+      discount: discountItem,
+      items: items
+    });
+    
+  } catch (e) {
+    console.error("POST /api/orders/:id/apply-discount error:", e);
+    res.status(500).json({ error: e.message || "Eroare la aplicarea discountului" });
+  }
+});
+
+// =============================================================================
+// ENDPOINT: Ștergere linie discount
+// Șterge discountul și produsele de deasupra rămân fără discount
+// =============================================================================
+app.delete("/api/orders/:id/discount/:index", async (req, res) => {
+  try {
+    const schemaName = req.session?.user?.schema_name || 'public';
+    const orderId = String(req.params.id);
+    const discountIndex = parseInt(req.params.index, 10);
+    
+    if (!Number.isFinite(discountIndex) || discountIndex < 0) {
+      return res.status(400).json({ error: "Index invalid" });
+    }
+    
+    if (!db.hasDb()) {
+      return res.status(500).json({ error: "DB neconfigurat" });
+    }
+    
+    // Ia comanda din DB
+    const orderRes = await db.q(
+      `SELECT items, sent_to_smartbill FROM ${schemaName}.orders WHERE id = $1`,
+      [orderId]
+    );
+    
+    if (!orderRes.rows.length) {
+      return res.status(404).json({ error: "Comandă inexistentă" });
+    }
+    
+    if (orderRes.rows[0].sent_to_smartbill) {
+      return res.status(403).json({ error: "Comanda a fost deja trimisă la SmartBill." });
+    }
+    
+    const items = orderRes.rows[0].items || [];
+    
+    // Verifică că la indexul specificat e un discount
+    if (discountIndex >= items.length || items[discountIndex].type !== 'discount') {
+      return res.status(400).json({ error: "Nu există discount la indexul specificat." });
+    }
+    
+    // Elimină discountul
+    const removedDiscount = items.splice(discountIndex, 1)[0];
+    
+    // Salvează în DB
+    await db.q(
+      `UPDATE ${schemaName}.orders SET items = $1::jsonb WHERE id = $2`,
+      [JSON.stringify(items), orderId]
+    );
+    
+    await logAudit(req, "ORDER_DISCOUNT_REMOVED", "order", orderId, {
+      percent: removedDiscount.percent,
+      amount: removedDiscount.amount
+    });
+    
+    res.json({ 
+      ok: true, 
+      removed: removedDiscount,
+      items: items
+    });
+    
+  } catch (e) {
+    console.error("DELETE /api/orders/:id/discount/:index error:", e);
+    res.status(500).json({ error: e.message || "Eroare la ștergerea discountului" });
   }
 });
 

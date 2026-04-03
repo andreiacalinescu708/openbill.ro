@@ -3184,21 +3184,43 @@ function selectProductByGTIN(gtin) {
     }
 
     // 4) ABIA ACUM editItems - resolvePrice e definită
-    let editItems = Array.isArray(order.items) ? order.items.map(it => ({
-      id: it.id,
-      name: it.name,
-      gtin: it.gtin,
-      qty: Number(it.qty || 1),
-      price: resolvePrice(it)
-    })) : [];
+    // Suport pentru discounturi: item.type === 'discount' sau lipsește (produs)
+    let editItems = Array.isArray(order.items) ? order.items.map(it => {
+      if (it.type === 'discount') {
+        // Păstrăm discountul așa cum e
+        return {
+          id: it.id,
+          type: 'discount',
+          name: it.name,
+          percent: it.percent,
+          amount: it.amount,
+          baseAmount: it.baseAmount,
+          qty: 1,
+          price: it.amount // prețul negativ
+        };
+      }
+      return {
+        id: it.id,
+        name: it.name,
+        gtin: it.gtin,
+        qty: Number(it.qty || 1),
+        price: resolvePrice(it),
+        type: it.type || 'product'
+      };
+    }) : [];
 
     // ... restul funcțiilor (calcTotal, renderTotal, renderMeta, etc.) rămân la fel
     function calcTotal() {
       let total = 0;
       for (const it of editItems) {
-        const price = Number(it.price || 0);
-        const qty = Number(it.qty || 0);
-        total += price * qty;
+        if (it.type === 'discount') {
+          // Discountul are amount negativ direct
+          total += Number(it.amount || 0);
+        } else {
+          const price = Number(it.price || 0);
+          const qty = Number(it.qty || 0);
+          total += price * qty;
+        }
       }
       return total;
     }
@@ -3230,64 +3252,120 @@ function selectProductByGTIN(gtin) {
       editItems.forEach((it, idx) => {
         const row = document.createElement("div");
         row.className = "row";
+        
+        // Stil diferit pentru discounturi
+        if (it.type === 'discount') {
+          row.style.background = 'rgba(245, 158, 11, 0.15)';
+          row.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+        }
+        
         const left = document.createElement("div");
         left.className = "rowLeft";
-        const price = Number(it.price || 0);
-        const qtyNum = Number(it.qty || 0);
-        const line = price * qtyNum;
+        
+        if (it.type === 'discount') {
+          // Randare discount
+          const percent = it.percent || 0;
+          const amount = Math.abs(Number(it.amount || 0));
+          const baseAmount = Number(it.baseAmount || 0);
+          
+          left.innerHTML = `
+            <div class="rowTitle" style="color: #f59e0b;">🏷️ ${it.name || 'Discount ' + percent + '%'}</div>
+            <div class="muted small">Discount ${percent}% aplicat pe ${baseAmount.toFixed(2)} RON</div>
+            <div style="color: #ef4444; font-weight: bold;">-${amount.toFixed(2)} RON</div>
+          `;
+        } else {
+          // Randare produs normal
+          const price = Number(it.price || 0);
+          const qtyNum = Number(it.qty || 0);
+          const line = price * qtyNum;
 
-        left.innerHTML = `
-          <div class="rowTitle">${it.name || "Produs"}</div>
-          <div class="muted small">GTIN: ${it.gtin || "-"}</div>
-          <div class="muted small">Preț: ${price.toFixed(2)} RON</div>
-          <div class="muted small">Subtotal: <b>${line.toFixed(2)} RON</b></div>
-        `;
+          left.innerHTML = `
+            <div class="rowTitle">${it.name || "Produs"}</div>
+            <div class="muted small">GTIN: ${it.gtin || "-"}</div>
+            <div class="muted small">Preț: ${price.toFixed(2)} RON</div>
+            <div class="muted small">Subtotal: <b>${line.toFixed(2)} RON</b></div>
+          `;
+        }
 
         const right = document.createElement("div");
         right.className = "rowRight";
 
-        const btnMinus = document.createElement("button");
-        btnMinus.className = "iconBtn";
-        btnMinus.textContent = "−";
-        btnMinus.onclick = () => {
-          it.qty = Math.max(1, Number(it.qty || 1) - 1);
-          renderItems();
-        };
+        if (it.type === 'discount') {
+          // Pentru discount: doar buton ștergere
+          const btnDel = document.createElement("button");
+          btnDel.className = "iconBtn danger";
+          btnDel.textContent = "✕";
+          btnDel.title = "Șterge discount";
+          btnDel.onclick = async () => {
+            // Ștergem din array local
+            editItems.splice(idx, 1);
+            renderItems();
+          };
+          right.appendChild(btnDel);
+        } else {
+          // Pentru produs: butoane +/- și ștergere
+          const btnMinus = document.createElement("button");
+          btnMinus.className = "iconBtn";
+          btnMinus.textContent = "−";
+          btnMinus.onclick = () => {
+            it.qty = Math.max(1, Number(it.qty || 1) - 1);
+            renderItems();
+          };
 
-        const qty = document.createElement("input");
-        qty.type = "number";
-        qty.min = "1";
-        qty.value = String(it.qty || 1);
-        qty.className = "qtyInput";
-        qty.onchange = () => {
-          const v = parseInt(qty.value, 10);
-          if (!Number.isFinite(v) || v <= 0) return;
-          it.qty = v;
-          renderItems();
-        };
+          const qty = document.createElement("input");
+          qty.type = "number";
+          qty.min = "1";
+          qty.value = String(it.qty || 1);
+          qty.className = "qtyInput";
+          qty.onchange = () => {
+            const v = parseInt(qty.value, 10);
+            if (!Number.isFinite(v) || v <= 0) return;
+            it.qty = v;
+            renderItems();
+          };
 
-        const btnPlus = document.createElement("button");
-        btnPlus.className = "iconBtn";
-        btnPlus.textContent = "+";
-        btnPlus.onclick = () => {
-          it.qty = Number(it.qty || 1) + 1;
-          renderItems();
-        };
+          const btnPlus = document.createElement("button");
+          btnPlus.className = "iconBtn";
+          btnPlus.textContent = "+";
+          btnPlus.onclick = () => {
+            it.qty = Number(it.qty || 1) + 1;
+            renderItems();
+          };
 
-        const btnDel = document.createElement("button");
-        btnDel.className = "iconBtn danger";
-        btnDel.textContent = "🗑";
-        btnDel.onclick = () => {
-          editItems.splice(idx, 1);
-          renderItems();
-        };
+          const btnDel = document.createElement("button");
+          btnDel.className = "iconBtn danger";
+          btnDel.textContent = "🗑";
+          btnDel.onclick = () => {
+            editItems.splice(idx, 1);
+            renderItems();
+          };
 
-        right.append(btnMinus, qty, btnPlus, btnDel);
+          right.append(btnMinus, qty, btnPlus, btnDel);
+        }
+
         row.append(left, right);
         list.appendChild(row);
       });
 
-      if (countEl) countEl.textContent = String(editItems.length);
+      // Adaugă butonul "+ Discount" la finalul listei
+      const addDiscountRow = document.createElement("div");
+      addDiscountRow.style.marginTop = "1rem";
+      addDiscountRow.style.textAlign = "center";
+      
+      const btnAddDiscount = document.createElement("button");
+      btnAddDiscount.className = "btn btn-secondary";
+      btnAddDiscount.innerHTML = "🏷️ + Adaugă linie discount";
+      btnAddDiscount.style.background = 'rgba(245, 158, 11, 0.2)';
+      btnAddDiscount.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+      btnAddDiscount.style.color = '#f59e0b';
+      btnAddDiscount.onclick = () => showDiscountModal();
+      
+      addDiscountRow.appendChild(btnAddDiscount);
+      list.appendChild(addDiscountRow);
+
+      // Numărăm doar produsele (nu discounturile) pentru count
+      const productCount = editItems.filter(it => it.type !== 'discount').length;
+      if (countEl) countEl.textContent = String(productCount);
       renderTotal();
     }
 
@@ -3343,19 +3421,90 @@ function selectProductByGTIN(gtin) {
 
     search.addEventListener("input", () => renderProductResults(search.value));
 
+    // Funcție pentru afișare modal discount
+    function showDiscountModal() {
+      // Calculează suma produselor de la ultimul discount încoace
+      let lastDiscountIndex = -1;
+      for (let i = editItems.length - 1; i >= 0; i--) {
+        if (editItems[i].type === 'discount') {
+          lastDiscountIndex = i;
+          break;
+        }
+      }
+      
+      let baseAmount = 0;
+      for (let i = lastDiscountIndex + 1; i < editItems.length; i++) {
+        const it = editItems[i];
+        if (it.type !== 'discount') {
+          baseAmount += Number(it.price || 0) * Number(it.qty || 1);
+        }
+      }
+      
+      if (baseAmount <= 0) {
+        alert("Nu există produse pentru a aplica discount. Adaugă produse mai întâi.");
+        return;
+      }
+      
+      const percent = prompt(`Suma produselor: ${baseAmount.toFixed(2)} RON\n\nIntrodu procentul discount (1-20%):`, "10");
+      if (percent === null) return;
+      
+      const p = parseFloat(percent);
+      if (!Number.isFinite(p) || p < 1 || p > 20) {
+        alert("Discount invalid. Trebuie să fie între 1% și 20%.");
+        return;
+      }
+      
+      const discountAmount = -(baseAmount * p / 100);
+      
+      editItems.push({
+        id: `discount_${Date.now()}`,
+        type: 'discount',
+        name: `Discount ${p}%`,
+        percent: p,
+        amount: Math.round(discountAmount * 100) / 100,
+        baseAmount: Math.round(baseAmount * 100) / 100,
+        qty: 1,
+        price: Math.round(discountAmount * 100) / 100
+      });
+      
+      renderItems();
+    }
+
     btnSave.onclick = async () => {
       if (!editItems.length) {
         alert("Comanda nu poate fi goală.");
         return;
       }
 
-      const payloadItems = editItems.map(it => ({
-        id: it.id,
-        name: it.name,
-        gtin: it.gtin,
-        qty: Number(it.qty || 1),
-        price: it.price
-      }));
+      // Verificăm să avem cel puțin un produs (nu doar discounturi)
+      const hasProducts = editItems.some(it => it.type !== 'discount');
+      if (!hasProducts) {
+        alert("Comanda trebuie să conțină cel puțin un produs.");
+        return;
+      }
+
+      const payloadItems = editItems.map(it => {
+        if (it.type === 'discount') {
+          return {
+            id: it.id,
+            type: 'discount',
+            name: it.name,
+            percent: it.percent,
+            amount: it.amount,
+            baseAmount: it.baseAmount,
+            qty: 1,
+            price: it.price
+          };
+        }
+        return {
+          id: it.id,
+          name: it.name,
+          gtin: it.gtin,
+          qty: Number(it.qty || 1),
+          price: it.price,
+          type: 'product'
+        };
+      });
 
       const res = await apiFetch(`/api/orders/${order.id}`, {
         method: "PUT",
