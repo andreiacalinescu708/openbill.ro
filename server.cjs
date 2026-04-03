@@ -417,11 +417,15 @@ const smartbillPayload = {
   // Mapare produse și discounturi pentru SmartBill
   const smartbillProducts = [];
   
+  console.log(`[SmartBill] Procesare ${order.items?.length || 0} items pentru comanda ${order.id}`);
+  
   for (const item of order.items || []) {
+    console.log(`[SmartBill] Item: ${item.name}, type: ${item.type}, price: ${item.price}`);
+    
     if (item.type === 'discount') {
       // Linie discount SmartBill - conform documentației
       // Discountul NU trebuie să aibă warehouseName
-      smartbillProducts.push({
+      const discountLine = {
         name: item.name || `Discount ${item.percent}%`,
         code: '',
         measuringUnitName: "BUC",
@@ -431,11 +435,13 @@ const smartbillPayload = {
         isTaxIncluded: false,
         taxName: 'Normala',
         taxPercentage: 21,
-        isDiscount: true,
+        isDiscount: true,  // <-- Acesta e important!
         isService: false,
         saveToDb: false,
         productDescription: ''
-      });
+      };
+      console.log(`[SmartBill] Discount creat:`, JSON.stringify(discountLine));
+      smartbillProducts.push(discountLine);
     } else {
       // Produs normal
       smartbillProducts.push({
@@ -2442,6 +2448,52 @@ app.post("/api/orders/:id/send", async (req, res) => {
     
     const company = await getCompanyDetails(req);
     
+    // Mapare produse și discounturi pentru SmartBill
+    const smartbillProducts = [];
+    
+    for (const item of order.items || []) {
+      if (item.type === 'discount') {
+        // Linie discount
+        smartbillProducts.push({
+          name: item.name || `Discount ${item.percent}%`,
+          code: '',
+          measuringUnitName: "BUC",
+          currency: 'RON',
+          quantity: 1,
+          price: Number(item.amount || 0),
+          isTaxIncluded: false,
+          taxName: 'Normala',
+          taxPercentage: 21,
+          isDiscount: true,
+          isService: false,
+          saveToDb: false,
+          productDescription: ''
+        });
+      } else {
+        // Produs normal
+        smartbillProducts.push({
+          name: item.name,
+          code: item.gtin,
+          measuringUnitName: "BUC",
+          currency: 'RON',
+          quantity: Number(item.qty || 0),
+          price: Number(item.unitPrice || item.price || 0),
+          isTaxIncluded: false,
+          taxName: 'Normala',
+          taxPercentage: 21,
+          isDiscount: false,
+          warehouseName: "DISTRIBUTIE",
+          isService: false,
+          saveToDb: false,
+          productDescription: (item.allocations || []).map(alloc => {
+            const lot = alloc.lot || '-';
+            const exp = alloc.expiresAt ? new Date(alloc.expiresAt).toLocaleDateString('ro-RO') : '-';
+            return `LOT: ${lot} | EXP: ${exp}`;
+          }).join('\n')
+        });
+      }
+    }
+
     const payload = {
       companyVatCode: company.cui,
       client: {
@@ -2456,26 +2508,7 @@ app.post("/api/orders/:id/send", async (req, res) => {
       dueDate: order.due_date,
       useStock: true,
       mentions: `Punct de lucru: ${order.client?.name || 'Client'}`,
-      products: (order.items || []).map(item => ({
-        name: item.name,
-        code: item.gtin,
-        measuringUnitName: "BUC",
-        currency: 'RON',
-        quantity: Number(item.qty || 0),
-        price: Number(item.unitPrice || item.price || 0),
-        isTaxIncluded: false,
-        taxName: 'Normala',
-        taxPercentage: 21,
-        isDiscount: false,
-        warehouseName: "DISTRIBUTIE",
-        isService: false,
-        saveToDb: false,
-        productDescription: (item.allocations || []).map(alloc => {
-          const lot = alloc.lot || '-';
-          const exp = alloc.expiresAt ? new Date(alloc.expiresAt).toLocaleDateString('ro-RO') : '-';
-          return `LOT: ${lot} | EXP: ${exp}`;
-        }).join('\n')
-      }))
+      products: smartbillProducts
     };
     
     console.log('=== SMARTBILL SEND PAYLOAD ===');
