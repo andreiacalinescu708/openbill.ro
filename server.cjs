@@ -423,24 +423,22 @@ const smartbillPayload = {
     console.log(`[SmartBill] Item: ${item.name}, type: ${item.type}, price: ${item.price}`);
     
     if (item.type === 'discount') {
-      // Linie discount SmartBill - conform documentației
-      // Trebuie să includem discountPercentage și discountValue
+      // Linie discount - trimis ca produs cu preț negativ
+      // SmartBill nu recunoaște isDiscount: true corect
       const discountLine = {
         name: item.name || `Discount ${item.percent}%`,
         code: '',
         measuringUnitName: "BUC",
         currency: 'RON',
         quantity: 1,
-        price: 0,  // Prețul e 0, discountul e în discountValue
+        price: Number(item.amount || 0),  // Valoare negativă directă
         isTaxIncluded: false,
         taxName: 'Normala',
         taxPercentage: 21,
-        isDiscount: true,
-        isService: false,
+        isDiscount: false,  // Trimis ca produs normal
+        isService: true,    // Marcat ca serviciu să nu afecteze stocul
         saveToDb: false,
-        productDescription: '',
-        discountPercentage: Number(item.percent || 0),
-        discountValue: Math.abs(Number(item.amount || 0))  // Valoare pozitivă
+        productDescription: ''
       };
       console.log(`[SmartBill] Discount creat:`, JSON.stringify(discountLine));
       smartbillProducts.push(discountLine);
@@ -2455,24 +2453,22 @@ app.post("/api/orders/:id/send", async (req, res) => {
     
     for (const item of order.items || []) {
       if (item.type === 'discount') {
-        // Linie discount - conform documentației SmartBill
-        // Trebuie să includem discountPercentage și discountValue
+        // Linie discount - trimis ca produs cu preț negativ
+        // SmartBill nu recunoaște isDiscount: true corect
         smartbillProducts.push({
           name: item.name || `Discount ${item.percent}%`,
           code: '',
           measuringUnitName: "BUC",
           currency: 'RON',
           quantity: 1,
-          price: 0,  // Prețul e 0, discountul e în discountValue
+          price: Number(item.amount || 0),  // Valoare negativă directă
           isTaxIncluded: false,
           taxName: 'Normala',
           taxPercentage: 21,
-          isDiscount: true,
-          isService: false,
+          isDiscount: false,  // Trimis ca produs normal
+          isService: true,    // Marcat ca serviciu să nu afecteze stocul
           saveToDb: false,
-          productDescription: '',
-          discountPercentage: Number(item.percent || 0),
-          discountValue: Math.abs(Number(item.amount || 0))  // Valoare pozitivă
+          productDescription: ''
         });
       } else {
         // Produs normal
