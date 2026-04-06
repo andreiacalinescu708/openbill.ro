@@ -622,6 +622,42 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Middleware pentru API de integrare service-to-service
+function integrationAuth(req, res, next) {
+  const apiKey = req.headers['x-api-key'];
+  const expectedKey = process.env.INTEGRATION_API_KEY;
+  
+  if (!expectedKey) {
+    return res.status(500).json({ error: "INTEGRATION_API_KEY neconfigurat." });
+  }
+  
+  if (!apiKey || apiKey !== expectedKey) {
+    return res.status(401).json({ error: "API key invalid sau lipsa." });
+  }
+  
+  next();
+}
+
+// Helper pentru apeluri către Facturare
+async function callFacturareAPI(endpoint, options = {}) {
+  const baseUrl = (process.env.FACTURARE_API_URL || 'http://localhost:3001').replace(/\/$/, '');
+  const url = `${baseUrl}/api/integration${endpoint}`;
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-API-Key': process.env.FACTURARE_API_KEY || '',
+    ...(options.headers || {})
+  };
+  
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+  
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok, status: response.status, data };
+}
+
 app.get("/api/version", (req, res) => {
   res.json({
     version: "2026-02-22-1",
@@ -2209,6 +2245,23 @@ app.put("/api/products/:id", isAdmin, async (req, res) => {
     const cat = String(category || "Altele").trim() || "Altele";
     const pr = (price != null && price !== "") ? Number(price) : null;
 
+    // Verifică dacă alt produs are deja acest GTIN
+    if (gtinClean) {
+      const checkRes = await db.q(
+        `SELECT id, name FROM ${schemaName}.products 
+         WHERE gtin = $1 AND id != $2 AND active = true
+         LIMIT 1`,
+        [gtinClean, id]
+      );
+      
+      if (checkRes.rows.length > 0) {
+        const other = checkRes.rows[0];
+        return res.status(409).json({ 
+          error: `GTIN-ul "${gtinClean}" este deja folosit de produsul "${other.name}". Nu poți avea două produse cu același GTIN.` 
+        });
+      }
+    }
+
     await db.q(
       `UPDATE ${schemaName}.products
        SET name=$1, gtin=$2, gtins=$3::jsonb, category=$4, price=$5
@@ -2219,6 +2272,14 @@ app.put("/api/products/:id", isAdmin, async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     console.error("PUT /api/products/:id error:", e);
+    
+    // Eroare specifică pentru constraint unique
+    if (e.message && e.message.includes('idx_products_gtin_ux')) {
+      return res.status(409).json({ 
+        error: `Acest GTIN este deja folosit de alt produs. Verifică dacă nu cumva ai produsul duplicat în sistem.` 
+      });
+    }
+    
     return res.status(500).json({ error: e.message || "Eroare DB edit produs" });
   }
 });
@@ -2239,6 +2300,35 @@ app.delete("/api/products/:id", isAdmin, async (req, res) => {
   }
 });
 
+
+// Endpoint pentru verificare duplicate GTIN
+app.get("/api/products/check-duplicates", isAdmin, async (req, res) => {
+  try {
+    const schemaName = req.session?.user?.schema_name || 'public';
+    if (!db.hasDb()) return res.json({ duplicates: [] });
+    
+    const r = await db.q(`
+      SELECT gtin, COUNT(*) as count, 
+             json_agg(json_build_object('id', id, 'name', name) ORDER BY name) as products
+      FROM ${schemaName}.products 
+      WHERE gtin IS NOT NULL AND active = true
+      GROUP BY gtin 
+      HAVING COUNT(*) > 1
+      ORDER BY count DESC
+    `);
+    
+    return res.json({ 
+      duplicates: r.rows,
+      count: r.rows.length,
+      message: r.rows.length > 0 
+        ? `Am găsit ${r.rows.length} GTIN-uri duplicate` 
+        : "Nu există duplicate"
+    });
+  } catch (e) {
+    console.error("check-duplicates error:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
 
 app.get("/api/products-flat", async (req, res) => {
   try {
@@ -6998,6 +7088,251 @@ app.get("/api/reports/expiring-stock", requireAuth, async (req, res) => {
   } catch (e) {
     console.error("Eroare raport expirare:", e);
     res.status(500).json({ error: "Eroare la generarea raportului" });
+  }
+});
+
+// ==========================================
+// PROXY API către Facturare (pentru frontend-ul Bun)
+// ==========================================
+
+// GET /api/facturare/client-balance - Sold client din Facturare
+app.get("/api/facturare/client-balance", requireAuth, async (req, res) => {
+  try {
+    const { cuiClient } = req.query;
+    if (!cuiClient) {
+      return res.status(400).json({ error: "Lipseste cuiClient" });
+    }
+    
+    const schemaName = req.session?.user?.schema_name || 'public';
+    const companySettings = await db.q(`SELECT cui FROM ${schemaName}.company_settings WHERE id = 'default'`);
+    const companyCui = companySettings.rows[0]?.cui || '';
+    
+    const result = await callFacturareAPI(`/client-balance?cuiClient=${encodeURIComponent(cuiClient)}`, {
+      method: 'GET',
+      headers: { 'X-Company-CUI': companyCui }
+    });
+    
+    if (!result.ok) {
+      return res.status(result.status || 500).json(result.data);
+    }
+    
+    res.json(result.data);
+  } catch (e) {
+    console.error("Proxy client-balance error:", e);
+    res.status(500).json({ error: "Eroare la comunicarea cu Facturare" });
+  }
+});
+
+// GET /api/facturare/invoices - Facturi client din Facturare
+app.get("/api/facturare/invoices", requireAuth, async (req, res) => {
+  try {
+    const { cuiClient, status, page, limit } = req.query;
+    if (!cuiClient) {
+      return res.status(400).json({ error: "Lipseste cuiClient" });
+    }
+    
+    const schemaName = req.session?.user?.schema_name || 'public';
+    const companySettings = await db.q(`SELECT cui FROM ${schemaName}.company_settings WHERE id = 'default'`);
+    const companyCui = companySettings.rows[0]?.cui || '';
+    
+    const params = new URLSearchParams({ cuiClient });
+    if (status) params.append('status', status);
+    if (page) params.append('page', page);
+    if (limit) params.append('limit', limit);
+    
+    const result = await callFacturareAPI(`/invoices?${params.toString()}`, {
+      method: 'GET',
+      headers: { 'X-Company-CUI': companyCui }
+    });
+    
+    if (!result.ok) {
+      return res.status(result.status || 500).json(result.data);
+    }
+    
+    res.json(result.data);
+  } catch (e) {
+    console.error("Proxy invoices error:", e);
+    res.status(500).json({ error: "Eroare la comunicarea cu Facturare" });
+  }
+});
+
+// POST /api/facturare/receipts - Inițiază plată în Facturare
+app.post("/api/facturare/receipts", requireAuth, async (req, res) => {
+  try {
+    const schemaName = req.session?.user?.schema_name || 'public';
+    const companySettings = await db.q(`SELECT cui FROM ${schemaName}.company_settings WHERE id = 'default'`);
+    const companyCui = companySettings.rows[0]?.cui || '';
+    
+    const result = await callFacturareAPI('/receipts', {
+      method: 'POST',
+      headers: { 'X-Company-CUI': companyCui },
+      body: JSON.stringify(req.body)
+    });
+    
+    if (!result.ok) {
+      return res.status(result.status || 500).json(result.data);
+    }
+    
+    res.json(result.data);
+  } catch (e) {
+    console.error("Proxy receipts error:", e);
+    res.status(500).json({ error: "Eroare la comunicarea cu Facturare" });
+  }
+});
+
+// ==========================================
+// INTEGRATION API - Service-to-service routes
+// ==========================================
+
+// GET /api/integration/stock - Stock pentru un produs (apelat de Facturare)
+app.get("/api/integration/stock", integrationAuth, async (req, res) => {
+  try {
+    const companyCui = req.headers['x-company-cui'];
+    if (!companyCui) {
+      return res.status(400).json({ error: "Lipseste header-ul X-Company-CUI" });
+    }
+    
+    const schemaName = await db.getSchemaNameByCUI(companyCui);
+    if (!schemaName) {
+      return res.status(404).json({ error: "Companie negasita pentru CUI furnizat" });
+    }
+    
+    const { gtin, warehouse = 'depozit' } = req.query;
+    if (!gtin) {
+      return res.status(400).json({ error: "Lipseste parametrul gtin" });
+    }
+    
+    const g = normalizeGTIN(gtin);
+    
+    const r = await db.q(
+      `SELECT id, gtin, product_name, lot, expires_at, qty, location, warehouse, created_at
+       FROM ${schemaName}.stock 
+       WHERE gtin = $1 AND warehouse = $2 AND qty > 0
+       ORDER BY expires_at ASC`,
+      [g, warehouse]
+    );
+    
+    const out = r.rows.map(s => ({
+      id: s.id,
+      gtin: s.gtin,
+      productName: s.product_name,
+      lot: s.lot,
+      expiresAt: s.expires_at,
+      qty: Number(s.qty || 0),
+      location: s.location || 'A',
+      warehouse: s.warehouse || 'depozit',
+      createdAt: s.created_at
+    }));
+    
+    res.json({ success: true, stock: out });
+  } catch (e) {
+    console.error("GET /api/integration/stock error:", e);
+    res.status(500).json({ error: "Eroare la citirea stocului" });
+  }
+});
+
+// GET /api/integration/products - Cauta produs dupa GTIN (apelat de Facturare)
+app.get("/api/integration/products", integrationAuth, async (req, res) => {
+  try {
+    const companyCui = req.headers['x-company-cui'];
+    if (!companyCui) {
+      return res.status(400).json({ error: "Lipseste header-ul X-Company-CUI" });
+    }
+    
+    const schemaName = await db.getSchemaNameByCUI(companyCui);
+    if (!schemaName) {
+      return res.status(404).json({ error: "Companie negasita pentru CUI furnizat" });
+    }
+    
+    const { gtin } = req.query;
+    if (!gtin) {
+      return res.status(400).json({ error: "Lipseste parametrul gtin" });
+    }
+    
+    const g = normalizeGTIN(gtin);
+    
+    const r = await db.q(
+      `SELECT id, name, gtin, gtins, category, price, active, created_at
+       FROM ${schemaName}.products 
+       WHERE gtin = $1 OR $1 = ANY(SELECT jsonb_array_elements_text(gtins)) 
+       LIMIT 1`,
+      [g]
+    );
+    
+    if (r.rows.length === 0) {
+      return res.status(404).json({ error: "Produs negasit" });
+    }
+    
+    const p = r.rows[0];
+    res.json({
+      success: true,
+      product: {
+        id: p.id,
+        name: p.name,
+        gtin: p.gtin,
+        gtins: p.gtins,
+        category: p.category,
+        price: Number(p.price) || 0,
+        active: p.active,
+        createdAt: p.created_at
+      }
+    });
+  } catch (e) {
+    console.error("GET /api/integration/products error:", e);
+    res.status(500).json({ error: "Eroare la cautarea produsului" });
+  }
+});
+
+// GET /api/integration/orders - Comenzile unui client (apelat de Facturare)
+app.get("/api/integration/orders", integrationAuth, async (req, res) => {
+  try {
+    const companyCui = req.headers['x-company-cui'];
+    if (!companyCui) {
+      return res.status(400).json({ error: "Lipseste header-ul X-Company-CUI" });
+    }
+    
+    const schemaName = await db.getSchemaNameByCUI(companyCui);
+    if (!schemaName) {
+      return res.status(404).json({ error: "Companie negasita pentru CUI furnizat" });
+    }
+    
+    const { clientId, status } = req.query;
+    
+    let query = `SELECT id, client, items, status, created_at, sent_to_smartbill, smartbill_series, smartbill_number, due_date
+                 FROM ${schemaName}.orders WHERE 1=1`;
+    const params = [];
+    
+    if (clientId) {
+      // Cautam comenzi unde client.id = clientId (client este JSONB)
+      query += ` AND client->>'id' = $${params.length + 1}`;
+      params.push(clientId);
+    }
+    
+    if (status) {
+      query += ` AND status = $${params.length + 1}`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    
+    const r = await db.q(query, params);
+    
+    const out = r.rows.map(o => ({
+      id: o.id,
+      client: o.client,
+      items: o.items,
+      status: o.status,
+      createdAt: o.created_at,
+      sentToSmartbill: o.sent_to_smartbill,
+      smartbillSeries: o.smartbill_series,
+      smartbillNumber: o.smartbill_number,
+      dueDate: o.due_date
+    }));
+    
+    res.json({ success: true, orders: out });
+  } catch (e) {
+    console.error("GET /api/integration/orders error:", e);
+    res.status(500).json({ error: "Eroare la citirea comenzilor" });
   }
 });
 
