@@ -2247,18 +2247,28 @@ app.put("/api/products/:id", isAdmin, async (req, res) => {
 
     // Verifică dacă alt produs are deja acest GTIN (excluzând produsul curent)
     if (gtinClean) {
-      const checkRes = await db.q(
-        `SELECT id, name FROM ${schemaName}.products 
-         WHERE gtin = $1 AND CAST(id AS TEXT) != CAST($2 AS TEXT) AND active = true
-         LIMIT 1`,
-        [gtinClean, id]
+      // Ia produsul curent din DB pentru a verifica GTIN-ul existent
+      const currentRes = await db.q(
+        `SELECT gtin FROM ${schemaName}.products WHERE id = $1`,
+        [id]
       );
+      const currentGtin = currentRes.rows[0]?.gtin;
       
-      if (checkRes.rows.length > 0) {
-        const other = checkRes.rows[0];
-        return res.status(409).json({ 
-          error: `GTIN-ul "${gtinClean}" este deja folosit de produsul "${other.name}". Nu poți avea două produse cu același GTIN.` 
-        });
+      // Dacă GTIN-ul nu s-a schimbat, nu verifica duplicate
+      if (currentGtin !== gtinClean) {
+        const checkRes = await db.q(
+          `SELECT id, name FROM ${schemaName}.products 
+           WHERE gtin = $1 AND id != $2 AND active = true
+           LIMIT 1`,
+          [gtinClean, id]
+        );
+        
+        if (checkRes.rows.length > 0) {
+          const other = checkRes.rows[0];
+          return res.status(409).json({ 
+            error: `GTIN-ul "${gtinClean}" este deja folosit de produsul "${other.name}". Nu poți avea două produse cu același GTIN.` 
+          });
+        }
       }
     }
 
