@@ -2245,11 +2245,11 @@ app.put("/api/products/:id", isAdmin, async (req, res) => {
     const cat = String(category || "Altele").trim() || "Altele";
     const pr = (price != null && price !== "") ? Number(price) : null;
 
-    // Verifică dacă alt produs are deja acest GTIN
+    // Verifică dacă alt produs are deja acest GTIN (excluzând produsul curent)
     if (gtinClean) {
       const checkRes = await db.q(
         `SELECT id, name FROM ${schemaName}.products 
-         WHERE gtin = $1 AND id != $2 AND active = true
+         WHERE gtin = $1 AND CAST(id AS TEXT) != CAST($2 AS TEXT) AND active = true
          LIMIT 1`,
         [gtinClean, id]
       );
