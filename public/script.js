@@ -3278,11 +3278,16 @@ function selectProductByGTIN(gtin) {
           const price = Number(it.price || 0);
           const qtyNum = Number(it.qty || 0);
           const line = price * qtyNum;
+          const isSpecial = it.isSpecialPrice || order.client?.prices?.[String(it.id)] != null;
 
           left.innerHTML = `
-            <div class="rowTitle">${it.name || "Produs"}</div>
+            <div class="rowTitle" style="display: flex; align-items: center; gap: 8px;">
+              ${isSpecial ? '<span style="color: #a855f7; font-size: 1.1em;">★</span>' : ''}
+              <span>${it.name || "Produs"}</span>
+              ${isSpecial ? '<span style="background: #a855f7; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;">PREȚ SPECIAL</span>' : ''}
+            </div>
             <div class="muted small">GTIN: ${it.gtin || "-"}</div>
-            <div class="muted small">Preț: ${price.toFixed(2)} RON</div>
+            <div class="muted small">Preț: <b style="color: ${isSpecial ? '#a855f7' : 'inherit'};">${price.toFixed(2)} RON</b></div>
             <div class="muted small">Subtotal: <b>${line.toFixed(2)} RON</b></div>
           `;
         }
@@ -3452,6 +3457,11 @@ function selectProductByGTIN(gtin) {
       const g = normalizeGTIN(primaryGTIN);
       const found = editItems.find(x => normalizeGTIN(x.gtin) === g);
       
+      // Folosește prețul special dacă există
+      const clientPrices = order.client?.prices || {};
+      const specialPrice = clientPrices[String(p.id)];
+      const finalPrice = specialPrice != null ? Number(specialPrice) : Number(p.price || 0);
+      
       if (found) {
         found.qty = Number(found.qty || 1) + 1;
       } else {
@@ -3460,7 +3470,8 @@ function selectProductByGTIN(gtin) {
           name: p.name,
           gtin: primaryGTIN,
           qty: 1,
-          price: Number(p.price || 0)
+          price: finalPrice,
+          isSpecialPrice: specialPrice != null
         });
       }
       renderItems();
@@ -3469,16 +3480,36 @@ function selectProductByGTIN(gtin) {
     function renderProductResults(q) {
       results.innerHTML = "";
       const query = String(q || "").toLowerCase().trim();
-      if (!query) {
-        
-      }
+      
+      // Prețuri speciale ale clientului
+      const clientPrices = order.client?.prices || {};
+      const hasSpecialPrice = (p) => clientPrices[String(p.id)] != null;
+      const isActiveClassic = (p) => String(p.name || "").toLowerCase().includes("active classic");
 
-      const matches = products
-        .filter(p =>
-          String(p.name || "").toLowerCase().includes(query) ||
-          String(p.path || "").toLowerCase().includes(query)
-        )
-        .slice(0, 30);
+      let matches = products.filter(p =>
+        String(p.name || "").toLowerCase().includes(query) ||
+        String(p.path || "").toLowerCase().includes(query)
+      );
+
+      // Sortare: Active Classic cu preț special primele, apoi altele cu preț special, apoi restul
+      matches.sort((a, b) => {
+        const aSpecial = hasSpecialPrice(a);
+        const bSpecial = hasSpecialPrice(b);
+        const aActive = isActiveClassic(a);
+        const bActive = isActiveClassic(b);
+        
+        if (aSpecial && bSpecial) {
+          // Ambele au preț special - Active Classic primele
+          if (aActive && !bActive) return -1;
+          if (!aActive && bActive) return 1;
+          return String(a.name).localeCompare(String(b.name));
+        }
+        if (aSpecial && !bSpecial) return -1;
+        if (!aSpecial && bSpecial) return 1;
+        return String(a.name).localeCompare(String(b.name));
+      });
+
+      matches = matches.slice(0, 30);
 
       if (!matches.length) {
         results.innerHTML = `<div class="empty">Niciun produs găsit.</div>`;
@@ -3486,11 +3517,30 @@ function selectProductByGTIN(gtin) {
       }
 
       matches.forEach(p => {
+        const specialPrice = clientPrices[String(p.id)];
+        const hasSpecial = specialPrice != null;
+        const isActive = isActiveClassic(p);
+        const basePrice = Number(p.price || 0);
+        
         const b = document.createElement("button");
         b.className = "resultBtn";
+        b.style.cssText = hasSpecial 
+          ? "border-left: 4px solid #a855f7; background: rgba(168, 85, 247, 0.1);" 
+          : "";
+        
         b.innerHTML = `
-          <div class="resultTitle">${p.name}</div>
-          <div class="muted small">${p.path || ""}</div>
+          <div class="resultTitle" style="display: flex; align-items: center; gap: 8px;">
+            ${hasSpecial ? '<span style="color: #a855f7; font-size: 1.2em;">★</span>' : ''}
+            <span>${p.name}</span>
+            ${isActive && hasSpecial ? '<span style="background: #a855f7; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">PREȚ SPECIAL</span>' : ''}
+          </div>
+          <div class="muted small" style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span>${p.path || ""}</span>
+            ${hasSpecial 
+              ? `<span style="color: #a855f7; font-weight: 600;">${Number(specialPrice).toFixed(2)} RON <span style="text-decoration: line-through; opacity: 0.6; font-weight: normal;">(${basePrice.toFixed(2)})</span></span>`
+              : `<span>${basePrice.toFixed(2)} RON</span>`
+            }
+          </div>
         `;
         b.onclick = () => addProduct(p);
         results.appendChild(b);
