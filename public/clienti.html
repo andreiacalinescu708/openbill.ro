@@ -395,39 +395,39 @@
     </div>
   </div>
 
-  <!-- Modal Adaugă Preț Special -->
+  <!-- Modal Adaugă Prețuri Speciale (Multiplu) -->
   <div id="priceModal" class="modal">
-    <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-content" style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;">
       <div class="modal-header">
-        <h3>💰 Adaugă Preț Special</h3>
+        <h3>🎯 Adaugă Prețuri Speciale</h3>
         <button class="modal-close" onclick="closePriceModal()">&times;</button>
       </div>
       
-      <div class="modal-body">
+      <div class="modal-body" style="overflow-y: auto; flex: 1;">
+        <!-- Căutare produse -->
         <div class="form-group">
-          <label>Caută produs (nume sau GTIN)</label>
+          <label>🔍 Caută și adaugă produse</label>
           <input type="text" id="priceSearchInput" class="input" placeholder="Tastează pentru a căuta..." autocomplete="off">
           <div id="priceSearchResults" style="max-height: 200px; overflow-y: auto; background: #0f172a; border-radius: 0.5rem; margin-top: 0.5rem;"></div>
         </div>
         
-        <div id="selectedProductInfo" style="display: none; background: #0f172a; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-          <div style="font-weight: 600; margin-bottom: 0.5rem;">Produs selectat:</div>
-          <div id="selectedProductName" style="color: #38bdf8;"></div>
-          <div id="selectedProductPrice" style="color: #94a3b8; font-size: 0.9rem;"></div>
-          <input type="hidden" id="selectedProductId">
+        <!-- Lista produse selectate -->
+        <div style="margin-top: 1rem;">
+          <label>📋 Produse selectate <span id="bulkCount" style="color: #38bdf8;">(0)</span></label>
+          <div id="bulkProductsContainer" style="max-height: 250px; overflow-y: auto; background: #0f172a; border-radius: 0.5rem; margin-top: 0.5rem; min-height: 80px; padding: 0.5rem;">
+            <div id="bulkEmptyMsg" style="text-align: center; color: #64748b; padding: 2rem;">
+              Niciun produs selectat.<br>🔍 Caută și adaugă produse de mai sus.
+            </div>
+          </div>
         </div>
         
-        <div class="form-group">
-          <label>Preț special (RON) *</label>
-          <input type="number" id="specialPriceInput" class="input" placeholder="0.00" step="0.01" min="0">
-        </div>
-        
-        <div style="display: flex; gap: 1rem;">
-          <button class="btnPrimary" style="flex: 1;" onclick="saveSpecialPrice()">💾 Salvează Preț</button>
-          <button class="btnSecondary" onclick="closePriceModal()">Anulează</button>
-        </div>
-        
-        <div id="priceMsg" class="msg"></div>
+        <div id="priceMsg" class="msg" style="margin-top: 1rem;"></div>
+      </div>
+      
+      <!-- Footer -->
+      <div style="padding: 1rem 1.5rem; border-top: 1px solid #334155; display: flex; gap: 1rem; justify-content: flex-end; background: #0f172a;">
+        <button class="btnSecondary" onclick="closePriceModal()">Anulează</button>
+        <button class="btnPrimary" onclick="saveBulkSpecialPrices()">💾 Salvează toate prețurile</button>
       </div>
     </div>
   </div>
@@ -840,7 +840,10 @@
       }
     };
 
-    // ============ PRETURI SPECIALE ============
+    // ============ PRETURI SPECIALE (MULTIPLU) ============
+    
+    // Array pentru produsele selectate în bulk
+    let bulkProducts = [];
     
     window.openPriceModal = function() {
       if (!selectedClient) return;
@@ -848,9 +851,10 @@
       document.getElementById('priceSearchInput').value = '';
       document.getElementById('priceSearchInput').focus();
       document.getElementById('priceSearchResults').innerHTML = '';
-      document.getElementById('selectedProductInfo').style.display = 'none';
-      document.getElementById('specialPriceInput').value = '';
       document.getElementById('priceMsg').textContent = '';
+      // Reset bulk products
+      bulkProducts = [];
+      renderBulkProductsList();
     };
     
     window.closePriceModal = function() {
@@ -878,77 +882,180 @@
         return;
       }
       
-      resultsDiv.innerHTML = filtered.map(p => {
+      // Salvăm produsele într-un obiect global pentru a evita problemele de escaping
+      window._searchResults = window._searchResults || {};
+      
+      resultsDiv.innerHTML = filtered.map((p, idx) => {
         const gtinText = p.gtin ? ` (GTIN: ${p.gtin})` : '';
         const currentPrice = p.price ? `<span style="color: #64748b; font-size: 0.85rem;">${Number(p.price).toFixed(2)} RON</span>` : '';
+        
+        // Verifică dacă produsul e deja în listă
+        const isSelected = bulkProducts.some(bp => bp.id === p.id);
+        const opacity = isSelected ? '0.5' : '1';
+        const cursor = isSelected ? 'not-allowed' : 'pointer';
+        const key = 'prod_' + idx;
+        window._searchResults[key] = p;
+        
+        const onclick = isSelected ? '' : `onclick="addProductToBulk('${key}')"`;
+        const badge = isSelected ? '<span style="color: #22c55e; font-size: 0.8rem;">✓ adăugat</span>' : '';
+        
         return `
-          <div class="client-item" onclick="selectProductForPrice('${p.id}', '${escapeHtml(p.name)}', ${p.price || 0})" style="cursor: pointer;">
+          <div class="client-item" ${onclick} style="cursor: ${cursor}; opacity: ${opacity};">
             <span>${escapeHtml(p.name)}${gtinText}</span>
-            ${currentPrice}
+            <span>${currentPrice} ${badge}</span>
           </div>
         `;
       }).join('');
     });
     
-    window.selectProductForPrice = function(prodId, prodName, currentPrice) {
-      document.getElementById('selectedProductId').value = prodId;
-      document.getElementById('selectedProductName').textContent = prodName;
-      document.getElementById('selectedProductPrice').textContent = currentPrice > 0 
-        ? `Pret standard: ${currentPrice.toFixed(2)} RON` 
-        : 'Fara pret standard';
-      document.getElementById('selectedProductInfo').style.display = 'block';
-      document.getElementById('priceSearchResults').innerHTML = '';
+    window.addProductToBulk = function(key) {
+      const p = window._searchResults && window._searchResults[key];
+      if (!p) return;
+      
+      // Verifică dacă produsul e deja în listă
+      if (bulkProducts.some(bp => bp.id === p.id)) {
+        return;
+      }
+      
+      bulkProducts.push({
+        id: p.id,
+        name: p.name,
+        gtin: p.gtin || '',
+        standard_price: p.price || 0,
+        special_price: ''
+      });
+      
+      renderBulkProductsList();
+      
+      // Curăță căutarea dar păstrează focusul pentru a adăuga mai multe
       document.getElementById('priceSearchInput').value = '';
-      document.getElementById('specialPriceInput').focus();
+      document.getElementById('priceSearchResults').innerHTML = '';
+      document.getElementById('priceSearchInput').focus();
     };
     
-    window.saveSpecialPrice = async function() {
+    function renderBulkProductsList() {
+      const container = document.getElementById('bulkProductsContainer');
+      const countEl = document.getElementById('bulkCount');
+      
+      countEl.textContent = `(${bulkProducts.length})`;
+      
+      if (bulkProducts.length === 0) {
+        container.innerHTML = `
+          <div id="bulkEmptyMsg" style="text-align: center; color: #64748b; padding: 2rem;">
+            Niciun produs selectat.<br>🔍 Caută și adaugă produse de mai sus.
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = bulkProducts.map((p, index) => `
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #1e293b; border-radius: 0.5rem; margin-bottom: 8px; border: 1px solid #334155;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 600; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(p.name)}</div>
+            <div style="color: #64748b; font-size: 0.875rem; margin-top: 2px;">
+              GTIN: ${p.gtin || '-'} | Preț listă: <span style="color: #38bdf8;">${Number(p.standard_price || 0).toFixed(2)} RON</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input 
+              type="number" 
+              step="0.01" 
+              placeholder="Preț special" 
+              value="${p.special_price}"
+              onchange="updateBulkPrice(${index}, this.value)"
+              style="width: 100px; padding: 8px; border-radius: 0.5rem; border: 1px solid #3b82f6; background: #0f172a; color: #f1f5f9; text-align: right; font-weight: 600;"
+            />
+            <span style="color: #64748b;">RON</span>
+            <button onclick="removeBulkProduct(${index})" style="background: #ef4444; color: white; border: none; border-radius: 6px; width: 32px; height: 32px; cursor: pointer; font-size: 1rem;" title="Șterge">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    window.updateBulkPrice = function(index, value) {
+      bulkProducts[index].special_price = value;
+    };
+    
+    window.removeBulkProduct = function(index) {
+      bulkProducts.splice(index, 1);
+      renderBulkProductsList();
+    };
+    
+    window.saveBulkSpecialPrices = async function() {
       if (!selectedClient) return;
       
-      const prodId = document.getElementById('selectedProductId').value;
-      const price = document.getElementById('specialPriceInput').value;
       const msg = document.getElementById('priceMsg');
       
-      if (!prodId) {
-        msg.textContent = 'Selecteaza un produs';
+      if (bulkProducts.length === 0) {
+        msg.textContent = 'Nu ai selectat niciun produs';
         msg.className = 'msg error';
         return;
       }
       
-      if (!price || price <= 0) {
-        msg.textContent = 'Introdu un pret valid';
+      // Validează că toate produsele au preț
+      const invalidProducts = bulkProducts.filter(p => {
+        const price = parseFloat(p.special_price);
+        return !price || price <= 0 || !Number.isFinite(price);
+      });
+      
+      if (invalidProducts.length > 0) {
+        msg.textContent = `${invalidProducts.length} produs(e) nu au preț special valid! Completează toate prețurile.`;
         msg.className = 'msg error';
         return;
       }
       
       try {
-        const res = await fetch(`/api/clients/${selectedClient.id}/prices`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            product_id: prodId, 
-            special_price: parseFloat(price) 
-          })
-        });
+        let savedCount = 0;
+        let errorCount = 0;
         
-        if (res.ok) {
-          msg.textContent = 'Pret salvat!';
+        for (const product of bulkProducts) {
+          try {
+            const res = await fetch(`/api/clients/${selectedClient.id}/prices`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                product_id: product.id, 
+                special_price: parseFloat(product.special_price) 
+              })
+            });
+            
+            if (res.ok) {
+              savedCount++;
+              if (!selectedClient.prices) selectedClient.prices = {};
+              selectedClient.prices[product.id] = parseFloat(product.special_price);
+            } else {
+              errorCount++;
+            }
+          } catch (e) {
+            errorCount++;
+          }
+        }
+        
+        if (errorCount === 0) {
+          msg.textContent = `${savedCount} prețuri salvate cu succes!`;
           msg.className = 'msg success';
-          if (!selectedClient.prices) selectedClient.prices = {};
-          selectedClient.prices[prodId] = parseFloat(price);
           setTimeout(() => {
             closePriceModal();
             renderClientDetails();
-          }, 800);
+          }, 1000);
         } else {
-          const err = await res.json();
-          msg.textContent = err.error || 'Eroare';
+          msg.textContent = `${savedCount} salvate, ${errorCount} erori.`;
           msg.className = 'msg error';
         }
-      } catch (e) {
-        msg.textContent = 'Eroare de retea';
+      } catch (err) {
+        msg.textContent = 'Eroare la salvare: ' + err.message;
         msg.className = 'msg error';
       }
+    };
+    
+    // Păstrăm funcțiile vechi pentru compatibilitate (nu ar trebui folosite)
+    window.selectProductForPrice = function(prodId, prodName, currentPrice) {
+      // Redirectează la funcția nouă
+      console.log('selectProductForPrice este deprecated');
+    };
+    
+    window.saveSpecialPrice = async function() {
+      console.log('saveSpecialPrice este deprecated, folosește saveBulkSpecialPrices');
     };
     
     window.removePrice = async function(prodId) {
