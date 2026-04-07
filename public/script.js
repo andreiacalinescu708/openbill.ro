@@ -79,6 +79,210 @@ window.alert = function(message) {
 // Păstrează și funcția originală disponibilă dacă e nevoie
 window.alertNative = originalAlert;
 
+// ============================================
+// MODAL CUSTOM CONFIRM/ALERT - DESIGN DARK CENTERED
+// ============================================
+
+/**
+ * Afișează un modal custom de confirmare/alertă
+ * @param {string} message - Mesajul de afișat
+ * @param {string} title - Titlul modalului
+ * @param {string} type - Tipul: 'confirm', 'alert', 'success', 'error', 'warning'
+ * @returns {Promise<boolean>} - true dacă utilizatorul apasă OK, false dacă anulează
+ */
+function showCustomModal(message, title = 'Confirmare', type = 'confirm') {
+  return new Promise((resolve) => {
+    // Creăm elementele modalului
+    const modal = document.createElement('div');
+    modal.id = 'customModalOverlay';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+      animation: fadeIn 0.2s ease;
+    `;
+    
+    // Iconițe și culori în funcție de tip
+    const config = {
+      confirm: { icon: '❓', color: '#3b82f6', titleColor: '#60a5fa' },
+      alert: { icon: 'ℹ️', color: '#64748b', titleColor: '#94a3b8' },
+      success: { icon: '✅', color: '#22c55e', titleColor: '#4ade80' },
+      error: { icon: '❌', color: '#ef4444', titleColor: '#f87171' },
+      warning: { icon: '⚠️', color: '#f59e0b', titleColor: '#fbbf24' }
+    };
+    
+    const cfg = config[type] || config.confirm;
+    const isConfirm = type === 'confirm';
+    
+    modal.innerHTML = `
+      <div style="
+        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid #334155;
+        border-radius: 16px;
+        max-width: 420px;
+        width: 100%;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        animation: slideUp 0.3s ease;
+      ">
+        <!-- Header -->
+        <div style="
+          background: linear-gradient(135deg, ${cfg.color}20 0%, transparent 100%);
+          padding: 24px 24px 16px;
+          text-align: center;
+          border-bottom: 1px solid #334155;
+        ">
+          <div style="
+            font-size: 3rem;
+            margin-bottom: 8px;
+            animation: bounceIn 0.5s ease;
+          ">${cfg.icon}</div>
+          <h3 style="
+            margin: 0;
+            color: ${cfg.titleColor};
+            font-size: 1.25rem;
+            font-weight: 600;
+          ">${title}</h3>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 24px;">
+          <p style="
+            margin: 0;
+            color: #e2e8f0;
+            font-size: 1rem;
+            line-height: 1.6;
+            text-align: center;
+          ">${message}</p>
+        </div>
+        
+        <!-- Footer -->
+        <div style="
+          padding: 0 24px 24px;
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        ">
+          ${isConfirm ? `
+            <button id="modalCancelBtn" style="
+              padding: 12px 24px;
+              border-radius: 10px;
+              border: 1px solid #475569;
+              background: transparent;
+              color: #94a3b8;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+              font-size: 0.95rem;
+            " onmouseover="this.style.background='#334155'; this.style.color='#f1f5f9'" 
+               onmouseout="this.style.background='transparent'; this.style.color='#94a3b8'">
+              Anulează
+            </button>
+          ` : ''}
+          <button id="modalConfirmBtn" style="
+            padding: 12px 28px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, ${cfg.color} 0%, ${cfg.color}dd 100%);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 15px ${cfg.color}40;
+          " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px ${cfg.color}60'" 
+             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px ${cfg.color}40'">
+            ${isConfirm ? 'Confirmă' : 'OK'}
+          </button>
+        </div>
+      </div>
+      
+      <style>
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { 
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+          }
+          to { 
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes bounceIn {
+          0% { transform: scale(0); }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+      </style>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Handlers
+    const confirmBtn = modal.querySelector('#modalConfirmBtn');
+    const cancelBtn = modal.querySelector('#modalCancelBtn');
+    
+    const handleConfirm = () => {
+      modal.remove();
+      resolve(true);
+    };
+    
+    const handleCancel = () => {
+      modal.remove();
+      resolve(false);
+    };
+    
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') {
+        handleCancel();
+        document.removeEventListener('keydown', handleKeydown);
+      } else if (e.key === 'Enter') {
+        handleConfirm();
+        document.removeEventListener('keydown', handleKeydown);
+      }
+    };
+    
+    // Event listeners
+    confirmBtn.addEventListener('click', handleConfirm);
+    if (cancelBtn) cancelBtn.addEventListener('click', handleCancel);
+    
+    // Click outside to close
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) handleCancel();
+    });
+    
+    document.addEventListener('keydown', handleKeydown);
+    
+    // Focus pe butonul confirm
+    setTimeout(() => confirmBtn.focus(), 100);
+  });
+}
+
+// Wrapper pentru confirm() care returnează Promise
+window.confirmAsync = function(message, title = 'Confirmare') {
+  return showCustomModal(message, title, 'confirm');
+};
+
+// Wrapper pentru alert() care returnează Promise
+window.alertAsync = function(message, title = 'Atenție', type = 'alert') {
+  return showCustomModal(message, title, type);
+};
+
+// ============================================
+
   async function apiFetch(url, options = {}) {
     const res = await fetch(url, {
       credentials: "same-origin",
