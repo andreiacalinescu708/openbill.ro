@@ -2236,11 +2236,14 @@ app.put("/api/products/:id", isAdmin, async (req, res) => {
 
     const gtinClean = normalizeGTIN(gtin || "") || null;
 
-    const gtinsArr = []
-      .concat(gtinClean ? [gtinClean] : [])
-      .concat(Array.isArray(gtins) ? gtins : [])
-      .map(normalizeGTIN)
-      .filter(Boolean);
+    // Elimină duplicatele din GTIN-uri (poate fi și în gtin principal și în array)
+    const gtinsArr = [...new Set(
+      []
+        .concat(gtinClean ? [gtinClean] : [])
+        .concat(Array.isArray(gtins) ? gtins : [])
+        .map(normalizeGTIN)
+        .filter(Boolean)
+    )];
 
     const cat = String(category || "Altele").trim() || "Altele";
     const pr = (price != null && price !== "") ? Number(price) : null;
