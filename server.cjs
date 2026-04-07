@@ -2252,33 +2252,43 @@ app.put("/api/products/:id", isAdmin, async (req, res) => {
         `SELECT gtin FROM ${schemaName}.products WHERE id = $1`,
         [id]
       );
-      const currentGtin = currentRes.rows[0]?.gtin || null;
       
-      console.log(`[DEBUG] Edit product ${id}: currentGtin="${currentGtin}", newGtin="${gtinClean}"`);
-      console.log(`[DEBUG] Are equal: ${currentGtin === gtinClean}`);
+      console.log(`[DEBUG] Edit product ${id}: rows=${currentRes.rows.length}`);
       
-      // Dacă GTIN-ul nu s-a schimbat, nu verifica duplicate
-      // Comparăm ca string-uri normalizate
-      const currentNormalized = currentGtin ? String(currentGtin).trim() : null;
-      const newNormalized = String(gtinClean).trim();
-      
-      if (currentNormalized !== newNormalized) {
-        console.log(`[DEBUG] GTIN changed, checking for duplicates...`);
-        const checkRes = await db.q(
-          `SELECT id, name FROM ${schemaName}.products 
-           WHERE gtin = $1 AND id != $2 AND active = true
-           LIMIT 1`,
-          [gtinClean, id]
-        );
-        
-        if (checkRes.rows.length > 0) {
-          const other = checkRes.rows[0];
-          return res.status(409).json({ 
-            error: `GTIN-ul "${gtinClean}" este deja folosit de produsul "${other.name}". Nu poți avea două produse cu același GTIN.` 
-          });
-        }
+      if (currentRes.rows.length === 0) {
+        console.log(`[DEBUG] Product ${id} not found in DB!`);
       } else {
-        console.log(`[DEBUG] GTIN unchanged, skipping duplicate check`);
+        const currentGtin = currentRes.rows[0]?.gtin;
+        console.log(`[DEBUG] currentGtin from DB: "${currentGtin}" (type: ${typeof currentGtin})`);
+        console.log(`[DEBUG] new gtinClean: "${gtinClean}" (type: ${typeof gtinClean})`);
+        
+        // Dacă GTIN-ul nu s-a schimbat, nu verifica duplicate
+        // Comparăm ca string-uri normalizate
+        const currentNormalized = currentGtin ? String(currentGtin).trim() : '';
+        const newNormalized = String(gtinClean).trim();
+        
+        console.log(`[DEBUG] currentNormalized: "${currentNormalized}"`);
+        console.log(`[DEBUG] newNormalized: "${newNormalized}"`);
+        console.log(`[DEBUG] Are equal: ${currentNormalized === newNormalized}`);
+        
+        if (currentNormalized === newNormalized) {
+          console.log(`[DEBUG] GTIN unchanged, skipping duplicate check`);
+        } else {
+          console.log(`[DEBUG] GTIN changed or product not found, checking for duplicates...`);
+          const checkRes = await db.q(
+            `SELECT id, name FROM ${schemaName}.products 
+             WHERE gtin = $1 AND id != $2 AND active = true
+             LIMIT 1`,
+            [gtinClean, id]
+          );
+          
+          if (checkRes.rows.length > 0) {
+            const other = checkRes.rows[0];
+            return res.status(409).json({ 
+              error: `GTIN-ul "${gtinClean}" este deja folosit de produsul "${other.name}". Nu poți avea două produse cu același GTIN.` 
+            });
+          }
+        }
       }
     }
 
