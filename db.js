@@ -192,11 +192,13 @@ await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS unlock_at TIMESTAMPTZ`);
   await q(`CREATE INDEX IF NOT EXISTS products_category_idx ON products (category)`);
   await q(`CREATE INDEX IF NOT EXISTS products_active_idx ON products (active)`);
 
-  // unique gtin (parțial)
+  // unique gtin (parțial - doar pentru produse active)
+  // Sterge indexul vechi dacă există și creează unul nou cu condiția active = true
+  await q(`DROP INDEX IF EXISTS products_gtin_ux`);
   await q(`
     CREATE UNIQUE INDEX IF NOT EXISTS products_gtin_ux
     ON products (gtin)
-    WHERE gtin IS NOT NULL
+    WHERE gtin IS NOT NULL AND active = true
   `);
 
   // normalize active null (dacă au existat rânduri fără active)
@@ -940,11 +942,12 @@ async function createTenantSchema(schemaName, companyData) {
   await q(`CREATE INDEX IF NOT EXISTS idx_trip_sheets_date ON ${schemaName}.trip_sheets (date DESC)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_fuel_receipts_sheet ON ${schemaName}.fuel_receipts (trip_sheet_id)`);
   
-  // Unique index pentru gtin
+  // Unique index pentru gtin (doar produse active)
+  await q(`DROP INDEX IF EXISTS idx_products_gtin_ux`);
   await q(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_products_gtin_ux 
     ON ${schemaName}.products (gtin) 
-    WHERE gtin IS NOT NULL
+    WHERE gtin IS NOT NULL AND active = true
   `);
   
   return true;
@@ -1051,6 +1054,17 @@ function maskToken(token) {
   return '***' + token.slice(-6);
 }
 
+async function getSchemaNameByCUI(cui) {
+  if (!pool) return null;
+  try {
+    const r = await q(`SELECT schema_name FROM public.companies WHERE cui = $1 LIMIT 1`, [cui]);
+    return r.rows.length > 0 ? r.rows[0].schema_name : null;
+  } catch (e) {
+    console.error('Eroare getSchemaNameByCUI:', e.message);
+    return null;
+  }
+}
+
 module.exports = { 
   q, 
   ensureTables, 
@@ -1065,6 +1079,7 @@ module.exports = {
   dropTenantSchema,
   cleanupUnverifiedCompanies,
   getSchemaByEmail,
+  getSchemaNameByCUI,
   // Criptare exports
   encryptToken,
   decryptToken,
