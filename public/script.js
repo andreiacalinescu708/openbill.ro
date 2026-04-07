@@ -1174,7 +1174,7 @@ if (elTb) elTb.textContent = totalWithVat.toFixed(2) + ' RON';
         };
 
         btnDel.onclick = async () => {
-          if (!confirm("Ștergi prețul special pentru acest produs?")) return;
+          if (!await confirmAsync("Ștergi prețul special pentru acest produs?", "Confirmare ștergere")) return;
           try {
             client.prices = client.prices || {};
             delete client.prices[String(pid)];
@@ -1436,7 +1436,7 @@ async function initCheckPricePage() {
   }
 
   async function doArchive(id, name) {
-    if (!confirm(`Arhivezi produsul?\n\n${name}\n\nVa dispărea din listă, dar rămâne în comenzile vechi.`)) return;
+    if (!await confirmAsync(`Arhivezi produsul?\n\n${name}\n\nVa dispărea din listă, dar rămâne în comenzile vechi.`, "Confirmare arhivare")) return;
 
     const r = await apiFetch(`/api/products/${encodeURIComponent(id)}`, { method: "DELETE" });
     const out = await r.json().catch(() => ({}));
@@ -2673,7 +2673,7 @@ if (!o.sentToSmartbill) {
   sendBtn.style.cssText = "background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; margin-left: 8px; font-weight: 600; font-size: 0.8125rem;";
   sendBtn.onclick = async (e) => {
     e.stopPropagation();
-    if (!confirm('Trimite comanda la SmartBill?')) return;
+    if (!await confirmAsync('Trimite comanda la SmartBill?', "Confirmare trimitere")) return;
     
     sendBtn.disabled = true;
     sendBtn.textContent = "⏳...";
@@ -2711,12 +2711,12 @@ if (!o.sentToSmartbill) {
   deleteBtn.onclick = async (e) => {
     e.stopPropagation();
     
-    if (!confirm(`⚠️ Sigur vrei să ștergi comanda pentru ${o.client?.name || 'client'}?\n\nAceastă acțiune nu poate fi anulată!`)) {
+    if (!await confirmAsync(`⚠️ Sigur vrei să ștergi comanda pentru ${o.client?.name || 'client'}?\n\nAceastă acțiune nu poate fi anulată!`, "Confirmare ștergere", "warning")) {
       return;
     }
     
     // Confirmare suplimentară
-    if (!confirm("Confirmi încă o dată ștergerea comenzii?")) {
+    if (!await confirmAsync("Confirmi încă o dată ștergerea comenzii?", "Confirmare finală", "warning")) {
       return;
     }
     
@@ -2780,7 +2780,7 @@ if (!o.sentToSmartbill) {
       `Serie SmartBill: ${o.smartbillSeries || '-'}\n` +
       `Număr: ${o.smartbillNumber || '-'}`;
     
-    if (!confirm(confirmMsg)) {
+    if (!await confirmAsync(confirmMsg, "Confirmare returnare stoc", "warning")) {
       return;
     }
     
