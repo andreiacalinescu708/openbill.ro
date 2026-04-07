@@ -192,14 +192,9 @@ await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS unlock_at TIMESTAMPTZ`);
   await q(`CREATE INDEX IF NOT EXISTS products_category_idx ON products (category)`);
   await q(`CREATE INDEX IF NOT EXISTS products_active_idx ON products (active)`);
 
-  // unique gtin (parțial - doar pentru produse active)
-  // Sterge indexul vechi dacă există și creează unul nou cu condiția active = true
+  // Index pentru gtin (fără constraint unic temporar)
   await q(`DROP INDEX IF EXISTS products_gtin_ux`);
-  await q(`
-    CREATE UNIQUE INDEX IF NOT EXISTS products_gtin_ux
-    ON products (gtin)
-    WHERE gtin IS NOT NULL AND active = true
-  `);
+  await q(`CREATE INDEX IF NOT EXISTS products_gtin_idx ON products (gtin)`);
 
   // normalize active null (dacă au existat rânduri fără active)
   await q(`UPDATE products SET active = true WHERE active IS NULL`);
@@ -942,13 +937,9 @@ async function createTenantSchema(schemaName, companyData) {
   await q(`CREATE INDEX IF NOT EXISTS idx_trip_sheets_date ON ${schemaName}.trip_sheets (date DESC)`);
   await q(`CREATE INDEX IF NOT EXISTS idx_fuel_receipts_sheet ON ${schemaName}.fuel_receipts (trip_sheet_id)`);
   
-  // Unique index pentru gtin (doar produse active)
+  // Index pentru gtin (fără constraint unic temporar)
   await q(`DROP INDEX IF EXISTS idx_products_gtin_ux`);
-  await q(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_products_gtin_ux 
-    ON ${schemaName}.products (gtin) 
-    WHERE gtin IS NOT NULL AND active = true
-  `);
+  await q(`CREATE INDEX IF NOT EXISTS idx_products_gtin_idx ON ${schemaName}.products (gtin)`);
   
   return true;
 }
