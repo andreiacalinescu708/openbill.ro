@@ -1931,13 +1931,18 @@ function getFullProduct(item) {
 
   // helper: găsește prețul corect
   function resolvePrice(it) {
+    // 1) Folosește mai întâi prețul salvat în comandă (unitPrice sau price)
+    const savedPrice = Number(it.unitPrice ?? it.price ?? 0);
+    if (savedPrice > 0) return savedPrice;
+
+    // 2) Fallback: caută prețul în catalog
     const pid = (it.id != null) ? String(it.id) : "";
     if (pid && priceById.has(pid)) return priceById.get(pid);
 
     const g = normalizeGTIN(it.gtin);
     if (g && priceByGtin.has(g)) return priceByGtin.get(g);
 
-    return Number(it.price || 0); // fallback
+    return 0;
   }
 
 
@@ -3378,13 +3383,19 @@ function selectProductByGTIN(gtin) {
 
     // 3) DEFINIRE resolvePrice (ACUM priceById există deja)
     function resolvePrice(it) {
+      // 1) Folosește mai întâi prețul salvat în comandă (unitPrice sau price)
+      // Acesta este prețul real cu care a fost plasată comanda
+      const savedPrice = Number(it.unitPrice ?? it.price ?? 0);
+      if (savedPrice > 0) return savedPrice;
+
+      // 2) Fallback: caută prețul în catalog (doar dacă nu avem preț salvat)
       const pid = (it.id != null) ? String(it.id) : "";
       if (pid && priceById.has(pid)) return priceById.get(pid);
 
       const g = normalizeGTIN(it.gtin);
       if (g && priceByGtin.has(g)) return priceByGtin.get(g);
 
-      return Number(it.price || 0);
+      return 0;
     }
 
     // 4) ABIA ACUM editItems - resolvePrice e definită
