@@ -443,11 +443,7 @@ mentions: `Punct de lucru: ${order.client?.name || 'Client'}`,
       warehouseName: "DISTRIBUTIE",
       isService: false,
       saveToDb: false,                      // Nu salvăm produsul în catalogul SmartBill
-      productDescription: (item.allocations || []).map(alloc => {
-        const lot = alloc.lot || '-';
-        const exp = alloc.expiresAt ? new Date(alloc.expiresAt).toLocaleDateString('ro-RO') : '-';
-        return `LOT: ${lot} | EXP: ${exp}`;
-      }).join('\n')
+      productDescription: buildLotDescription(item.allocations)
     }))
   };
 
@@ -965,6 +961,20 @@ function normalizeGTIN(gtin) {
   return g;
 }
 
+// Grupează allocations după lot+expirare pentru a evita duplicate pe factură
+function buildLotDescription(allocations) {
+  const groups = {};
+  for (const alloc of (allocations || [])) {
+    const key = `${alloc.lot || '-'}|${alloc.expiresAt || '-'}`;
+    if (!groups[key]) {
+      groups[key] = { lot: alloc.lot || '-', expiresAt: alloc.expiresAt };
+    }
+  }
+  return Object.values(groups).map(g => {
+    const exp = g.expiresAt ? new Date(g.expiresAt).toLocaleDateString('ro-RO') : '-';
+    return `LOT: ${g.lot} | EXP: ${exp}`;
+  }).join('\n');
+}
 
 function allocateStockByLocation(stock, gtin, neededQty) {
   const g = normalizeGTIN(gtin);
@@ -2441,11 +2451,7 @@ app.post("/api/orders/:id/send", async (req, res) => {
         warehouseName: "DISTRIBUTIE",
         isService: false,
         saveToDb: false,
-        productDescription: (item.allocations || []).map(alloc => {
-          const lot = alloc.lot || '-';
-          const exp = alloc.expiresAt ? new Date(alloc.expiresAt).toLocaleDateString('ro-RO') : '-';
-          return `LOT: ${lot} | EXP: ${exp}`;
-        }).join('\n')
+        productDescription: buildLotDescription(item.allocations)
       }))
     };
     
