@@ -3706,21 +3706,20 @@ function selectProductByGTIN(gtin) {
         String(p.path || "").toLowerCase().includes(query)
       );
 
-      // Sortare: Active Classic cu preț special primele, apoi altele cu preț special, apoi restul
+      // Sortare: Active Classic primele (cu preț special sau nu), apoi altele cu preț special, apoi restul
+      function getProductPriority(p) {
+        const special = hasSpecialPrice(p);
+        const active = isActiveClassic(p);
+        if (active && special) return 0;   // 1. Active Classic cu preț special
+        if (active) return 1;               // 2. Active Classic fără preț special
+        if (special) return 2;              // 3. Altele cu preț special
+        return 3;                           // 4. Restul
+      }
+      
       matches.sort((a, b) => {
-        const aSpecial = hasSpecialPrice(a);
-        const bSpecial = hasSpecialPrice(b);
-        const aActive = isActiveClassic(a);
-        const bActive = isActiveClassic(b);
-        
-        if (aSpecial && bSpecial) {
-          // Ambele au preț special - Active Classic primele
-          if (aActive && !bActive) return -1;
-          if (!aActive && bActive) return 1;
-          return String(a.name).localeCompare(String(b.name));
-        }
-        if (aSpecial && !bSpecial) return -1;
-        if (!aSpecial && bSpecial) return 1;
+        const pa = getProductPriority(a);
+        const pb = getProductPriority(b);
+        if (pa !== pb) return pa - pb;
         return String(a.name).localeCompare(String(b.name));
       });
 
